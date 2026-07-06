@@ -1,0 +1,299 @@
+# Review package: 367a4acd4c03cd13eabf589acce8d95c72d7e241..411bceb2f3ef32ff1afeacf2675ebd3d2cab3e5b
+
+## Commits
+411bceb feat: port skill case types and legal content to typed data
+
+## Files changed
+ data/legal-content.json | 139 ++++++++++++++++++++++++++++++++++++++++++++++++
+ lib/caseTypes.ts        |  14 +++++
+ lib/types.ts            |  55 +++++++++++++++++++
+ tests/caseTypes.test.ts |  35 ++++++++++++
+ vitest.config.ts        |   3 +-
+ 5 files changed, 245 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/data/legal-content.json b/data/legal-content.json
+new file mode 100644
+index 0000000..76fb0c8
+--- /dev/null
++++ b/data/legal-content.json
+@@ -0,0 +1,139 @@
++{
++  "caseTypes": [
++    {
++      "id": 1,
++      "name": "일반 생활지도 — 조언·주의 단계",
++      "shortName": "일반 생활지도",
++      "lengthHint": "200~300자",
++      "highRisk": false,
++      "skeleton": "[<일시>, <장소>] <관찰된 행동 묘사>. 교사가 '<교사 발화>'라고 안내하자 본인은 '<학생 발화>'라고 답함. 교원의 학생생활지도에 관한 고시(제9조 조언/제11조 주의) 단계로 지도하였으며, 본인은 <수용 양상>을 보임. 추후 <재관찰 기간> 동안 행동 변화를 관찰 예정임.",
++      "bases": ["교원의 학생생활지도에 관한 고시(제2026-3호)", "초·중등교육법 제20조의2"],
++      "lawQueries": [],
++      "slots": [
++        { "key": "datetime", "label": "일시 (연·월·일·요일 + 교시 또는 시각)", "placeholder": "예: 2026.5.13.(수) 3교시 10:05", "required": true, "multiline": false },
++        { "key": "place", "label": "장소", "placeholder": "예: 교실 / 복도 / 특별실", "required": true, "multiline": false },
++        { "key": "behavior", "label": "관찰된 행동 (외부에서 본 그대로, 평가어 없이)", "placeholder": "예: 자습 중 다른 학생의 필통을 바닥에 떨어뜨림", "required": true, "multiline": true },
++        { "key": "teacherUtterance", "label": "교사가 한 말 (그대로)", "placeholder": "예: 무슨 일이니", "required": true, "multiline": false },
++        { "key": "studentUtterance", "label": "학생이 한 말 (그대로)", "placeholder": "예: 장난이었어요", "required": true, "multiline": false },
++        { "key": "guidanceStep", "label": "적용한 지도 단계", "placeholder": "조언 또는 주의", "required": true, "multiline": false },
++        { "key": "studentReaction", "label": "학생 반응", "placeholder": "예: 사과 후 자리에 앉음 / 반복 / 격앙", "required": true, "multiline": false },
++        { "key": "guardianNotice", "label": "보호자 통보 (시각·수단, 안 했으면 사유)", "placeholder": "예: 16:40 모친께 유선 통보 / 미통보 사유", "required": false, "multiline": false },
++        { "key": "followUp", "label": "후속 조치 계획", "placeholder": "예: 1주일 재관찰, 필요 시 Wee클래스 의뢰", "required": true, "multiline": true }
++      ]
++    },
++    {
++      "id": 2,
++      "name": "개별 상담 (자발·요청 상담)",
++      "shortName": "개별 상담",
++      "lengthHint": "250~400자",
++      "highRisk": false,
++      "skeleton": "[<일시>, <장소> 별도 상담] <상담 신청 경위>로 <상담 시간> 상담 진행함. 본인은 '<학생 호소>'라고 표현하였고, 교사는 경청 후 <제공한 정보·조언>를 안내함. 비밀유지 원칙과 안전 위해 시 보호자 통지 가능함을 사전 안내함. 본인은 <학생의 수용 양상>을 보였으며, 후속으로 <후속>를 진행하기로 함.",
++      "bases": ["교원의 학생생활지도에 관한 고시(제2026-3호) 제10조"],
++      "lawQueries": [],
++      "slots": [
++        { "key": "datetime", "label": "일시", "placeholder": "예: 2026.5.13.(수) 종례 후 16:00", "required": true, "multiline": false },
++        { "key": "place", "label": "장소", "placeholder": "예: 상담실 / 교실", "required": true, "multiline": false },
++        { "key": "origin", "label": "상담 신청 경위", "placeholder": "학생 요청 / 교사 권유 / 학부모 요청", "required": true, "multiline": false },
++        { "key": "duration", "label": "상담 시간", "placeholder": "예: 20분", "required": false, "multiline": false },
++        { "key": "studentConcern", "label": "학생의 주된 호소 (그대로, 감정과 사실 분리)", "placeholder": "예: 친구랑 사이가 멀어져서 힘들어요", "required": true, "multiline": true },
++        { "key": "teacherResponse", "label": "교사가 제공한 정보·조언", "placeholder": "예: 관계 회복 방법 안내", "required": true, "multiline": true },
++        { "key": "studentReaction", "label": "학생의 수용 양상", "placeholder": "예: 수긍하고 안정됨", "required": true, "multiline": false },
++        { "key": "followUp", "label": "후속 (Wee클래스 의뢰 / 재상담 일정 / 보호자 통보 여부)", "placeholder": "예: 1주 후 재상담", "required": true, "multiline": true }
++      ]
++    },
++    {
++      "id": 3,
++      "name": "학교폭력 의심·인지",
++      "shortName": "학교폭력",
++      "lengthHint": "400~600자",
++      "highRisk": true,
++      "skeleton": "[<일시>, <장소>] <인지 경위>를 통해 학교폭력 사안을 인지함. 사실관계는 다음과 같음. <사실관계>. 즉시 본인과 다른 학생을 분리하여 안전을 확보하고, <보고 시각>에 학교폭력 책임교사께 보고함. '학교폭력예방 및 대책에 관한 법률'에 따른 학교폭력전담기구 절차 진행 예정임. 본인 보호자께 <보호자 통보>으로 사실 통보함.",
++      "bases": ["학교폭력예방 및 대책에 관한 법률"],
++      "lawQueries": ["학교폭력예방 및 대책에 관한 법률"],
++      "slots": [
++        { "key": "datetime", "label": "일시", "placeholder": "예: 2026.5.13.(수) 4교시", "required": true, "multiline": false },
++        { "key": "place", "label": "장소", "placeholder": "예: 교실 뒤편", "required": true, "multiline": false },
++        { "key": "origin", "label": "인지 경위", "placeholder": "직접 목격 / 학생 신고 / 학부모 제보", "required": true, "multiline": false },
++        { "key": "facts", "label": "사실관계 (시간 순, 관찰·전달된 사실만)", "placeholder": "예: 쉬는 시간에 … 그 후 …", "required": true, "multiline": true },
++        { "key": "separation", "label": "즉시 조치 (분리·안전 확보)", "placeholder": "예: 두 학생을 즉시 분리", "required": true, "multiline": false },
++        { "key": "reportTime", "label": "책임교사·전담기구 보고 시각", "placeholder": "예: 11:20", "required": true, "multiline": false },
++        { "key": "guardianNotice", "label": "보호자 통보 (시각·수단)", "placeholder": "예: 12:10 유선", "required": true, "multiline": false }
++      ]
++    },
++    {
++      "id": 4,
++      "name": "자해·자살 징후 인지",
++      "shortName": "자해·자살 징후",
++      "lengthHint": "400~600자",
++      "highRisk": true,
++      "skeleton": "[<일시>, <장소>] <인지 경위>로 본인의 위기 신호를 인지함. 본인은 '<학생 발언>'이라고 표현함. 교사는 즉시 '<교사 안전확보 발화>'라고 안전을 확인하고 곁에 머무름. <보호자 통보> 보호자께 통보 후 가정 내 위험요인 제거를 요청함. <외부 연계>에 연계함. '자살예방 및 생명존중문화 조성을 위한 법률' 및 학교 위기관리 매뉴얼에 따른 후속 절차 진행 예정임.",
++      "bases": ["자살예방 및 생명존중문화 조성을 위한 법률", "학교 위기관리 매뉴얼"],
++      "lawQueries": ["자살예방 및 생명존중문화 조성을 위한 법률"],
++      "slots": [
++        { "key": "datetime", "label": "일시", "placeholder": "예: 2026.5.13.(수) 점심시간", "required": true, "multiline": false },
++        { "key": "place", "label": "장소", "placeholder": "예: 교실 / 상담실", "required": true, "multiline": false },
++        { "key": "origin", "label": "인지 경위", "placeholder": "발언 청취 / 신체 흔적 관찰 / 친구 제보", "required": true, "multiline": false },
++        { "key": "studentUtterance", "label": "학생 발언 (그대로)", "placeholder": "예: 그냥 사라지고 싶어요", "required": true, "multiline": true },
++        { "key": "teacherUtterance", "label": "교사 안전확보 발화 (그대로)", "placeholder": "예: 지금 많이 힘들구나, 선생님이 곁에 있을게", "required": true, "multiline": false },
++        { "key": "guardianNotice", "label": "보호자 통보 (시각·수단, 지연 금지)", "placeholder": "예: 14:15 유선", "required": true, "multiline": false },
++        { "key": "externalLink", "label": "외부 연계 (Wee센터/정신건강복지센터/1393 등, 시각)", "placeholder": "예: 14:30 Wee센터 연계", "required": true, "multiline": false }
++      ]
++    },
++    {
++      "id": 5,
++      "name": "아동학대 의심 (가정 내)",
++      "shortName": "아동학대 의심",
++      "lengthHint": "400~600자",
++      "highRisk": true,
++      "skeleton": "[<일시>, <장소>] <인지 경위>를 통해 본인에게 '아동학대범죄의 처벌 등에 관한 특례법' 제2조에 해당할 가능성이 있는 정황을 인지함. 관찰된 객관적 사실은 다음과 같음. <객관적 사실>. 동법 제10조 제2항 제20호 신고의무에 따라 <신고>에 신고함. 이후 본인의 학교 내 안전 확보 및 학습 지원을 위해 <보호조치>을 실시함. 본 기록은 비밀유지 의무에 따라 관계자 외 열람을 제한함.",
++      "bases": ["아동학대범죄의 처벌 등에 관한 특례법 제2조", "아동학대범죄의 처벌 등에 관한 특례법 제10조 제2항 제20호"],
++      "lawQueries": ["아동학대범죄의 처벌 등에 관한 특례법"],
++      "slots": [
++        { "key": "datetime", "label": "일시", "placeholder": "예: 2026.5.13.(수) 1교시", "required": true, "multiline": false },
++        { "key": "place", "label": "장소", "placeholder": "예: 교실", "required": true, "multiline": false },
++        { "key": "origin", "label": "인지 경위", "placeholder": "신체 흔적 관찰 / 학생 진술 / 다른 학생 제보", "required": true, "multiline": false },
++        { "key": "facts", "label": "관찰된 객관적 사실만 (가해자 단정 금지)", "placeholder": "예: 왼팔에 멍이 관찰됨, 본인이 …라고 진술함", "required": true, "multiline": true },
++        { "key": "report", "label": "신고 (기관·시각)", "placeholder": "예: 10:30 112 신고 / 시·군·구 아동학대신고", "required": true, "multiline": false },
++        { "key": "protection", "label": "신고 후 학교 내 보호조치", "placeholder": "예: 보건실 안정, 담임 관찰", "required": true, "multiline": false }
++      ]
++    },
++    {
++      "id": 6,
++      "name": "긴급제지 발생 (신체적 개입)",
++      "shortName": "긴급제지",
++      "lengthHint": "450~700자",
++      "highRisk": true,
++      "skeleton": "[<일시>, <장소>] 본인이 <위해 임박 행위>를 보여 자신 및 다른 학생의 생명과 신체에 위해가 발생할 우려가 있는 긴급 상황이 발생함. 교사는 먼저 '<구두 지시 발화>'라고 구두로 제지하였으나(고시 제12조③ 말로 제지) 행위가 계속되어 '초·중등교육법' 제20조의2 제3항에 따른 방어 및 보호 제지로 <제지 태양>를 시행함. 위험 제거 직후 제지를 종료함. 종료 즉시 <학교장 보고>에 학교장께 보고하였고(동조 제5항), <보호자 통보> 보호자께 사실 통보함. 이후 본인을 별도 공간에서 안정시키고, 후속으로 <후속>를 진행 예정임.",
++      "bases": ["초·중등교육법 제20조의2 제3항", "초·중등교육법 제20조의2 제5항", "교원의 학생생활지도에 관한 고시(제2026-3호) 제12조"],
++      "lawQueries": ["초·중등교육법"],
++      "slots": [
++        { "key": "datetime", "label": "일시", "placeholder": "예: 2026.5.13.(수) 2교시", "required": true, "multiline": false },
++        { "key": "place", "label": "장소", "placeholder": "예: 교실", "required": true, "multiline": false },
++        { "key": "imminentHarm", "label": "위해 임박 행위 (관찰 사실)", "placeholder": "예: 의자를 들어 다른 학생에게 던지려 함", "required": true, "multiline": true },
++        { "key": "verbalOrder", "label": "먼저 시도한 구두 지시 (그대로)", "placeholder": "예: 위험하니 내려놓으렴", "required": true, "multiline": false },
++        { "key": "restraintForm", "label": "사용한 제지의 구체적 태양·시간", "placeholder": "예: 손목을 약 5초간 잡아 책상에서 떨어뜨림", "required": true, "multiline": true },
++        { "key": "principalReport", "label": "학교장 보고 시각", "placeholder": "예: 즉시 10:05", "required": true, "multiline": false },
++        { "key": "guardianNotice", "label": "보호자 통보 (시각·수단)", "placeholder": "예: 10:20 유선", "required": true, "multiline": false },
++        { "key": "followUp", "label": "사후 안정화·후속 (상담/Wee클래스 등)", "placeholder": "예: 별도 공간 안정 후 상담 연계", "required": true, "multiline": false }
++      ]
++    },
++    {
++      "id": 7,
++      "name": "학부모 악성 민원·교권 침해",
++      "shortName": "학부모 악성 민원",
++      "lengthHint": "400~600자",
++      "highRisk": true,
++      "skeleton": "[<일시>, <연락 수단>] 본인 보호자로부터 <침해 유형>에 해당하는 행위가 있었음. 보호자는 '<발화 인용>'이라고 발언함. 해당 행위는 '교원의 지위 향상 및 교육활동 보호를 위한 특별법' 제19조에 해당할 소지가 있어, 통화 종료 후 <학교장 보고>에 학교장께 즉시 보고하고 동법 제20조에 따른 분리조치를 요청함. 본인(학생)에 대한 교육활동은 본 사안과 분리하여 정상 진행되었음. 사안의 재발 여부에 따라 교권보호위원회 회부를 검토함.",
++      "bases": ["교원의 지위 향상 및 교육활동 보호를 위한 특별법 제19조", "교원의 지위 향상 및 교육활동 보호를 위한 특별법 제20조"],
++      "lawQueries": ["교원의 지위 향상 및 교육활동 보호를 위한 특별법"],
++      "slots": [
++        { "key": "datetime", "label": "일시", "placeholder": "예: 2026.5.12.(화) 22:30", "required": true, "multiline": false },
++        { "key": "channel", "label": "연락 수단", "placeholder": "전화 / 방문 / 문자", "required": true, "multiline": false },
++        { "key": "violationType", "label": "침해 유형", "placeholder": "폭언 / 반복 민원 / 법적 의무 아닌 일 강요", "required": true, "multiline": false },
++        { "key": "utterance", "label": "보호자 발화 인용 (그대로, 제3자 실명 제외)", "placeholder": "예: 당장 학교로 찾아가겠다", "required": true, "multiline": true },
++        { "key": "principalReport", "label": "학교장 보고·분리조치 요청 시각", "placeholder": "예: 익일 08:50", "required": true, "multiline": false },
++        { "key": "committee", "label": "교권보호위원회 회부 검토 여부", "placeholder": "예: 재발 시 회부 검토", "required": false, "multiline": false }
++      ]
++    }
++  ]
++}
+diff --git a/lib/caseTypes.ts b/lib/caseTypes.ts
+new file mode 100644
+index 0000000..e261a8e
+--- /dev/null
++++ b/lib/caseTypes.ts
+@@ -0,0 +1,14 @@
++import raw from '@/data/legal-content.json';
++import type { CaseType, CaseTypeId } from '@/lib/types';
++
++export const CASE_TYPES: CaseType[] = raw.caseTypes as CaseType[];
++
++export const HIGH_RISK_IDS: Set<CaseTypeId> = new Set(
++  CASE_TYPES.filter((c) => c.highRisk).map((c) => c.id)
++);
++
++export function getCaseType(id: CaseTypeId): CaseType {
++  const found = CASE_TYPES.find((c) => c.id === id);
++  if (!found) throw new Error(`Unknown case type id: ${id}`);
++  return found;
++}
+diff --git a/lib/types.ts b/lib/types.ts
+new file mode 100644
+index 0000000..b5dc940
+--- /dev/null
++++ b/lib/types.ts
+@@ -0,0 +1,55 @@
++export type CaseTypeId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
++
++export interface SlotDef {
++  key: string;
++  label: string;
++  placeholder: string;
++  required: boolean;
++  multiline: boolean;
++}
++
++export interface CaseType {
++  id: CaseTypeId;
++  name: string;
++  shortName: string;
++  lengthHint: string;
++  highRisk: boolean;
++  skeleton: string;
++  bases: string[];
++  lawQueries: string[];
++  slots: SlotDef[];
++}
++
++export type AiProvider = 'gemini' | 'claude' | 'openai';
++
++export interface AiConfig {
++  mode: 'free' | 'byok';
++  provider?: AiProvider;
++  apiKey?: string;
++  model?: string;
++}
++
++export interface GenerateRequest {
++  caseTypeId: CaseTypeId;
++  slots: Record<string, string>;
++  isSpecialEd: boolean;
++  ai: AiConfig;
++}
++
++export interface ResultMeta {
++  bases: string;
++  caseType: string;
++  charCount: string;
++  guidanceStep: string;
++  guardianNotice: string;
++  followUp: string;
++}
++
++export interface GenerateResult {
++  body: string;
++  meta: ResultMeta;
++  teacherUnderstanding: string[];
++  safeGuidance: string[];
++  teacherMemo: string[];
++  warnings: string[];
++}
+diff --git a/tests/caseTypes.test.ts b/tests/caseTypes.test.ts
+new file mode 100644
+index 0000000..effc8ca
+--- /dev/null
++++ b/tests/caseTypes.test.ts
+@@ -0,0 +1,35 @@
++import { describe, it, expect } from 'vitest';
++import { CASE_TYPES, getCaseType, HIGH_RISK_IDS } from '@/lib/caseTypes';
++
++describe('caseTypes', () => {
++  it('has exactly 7 case types with ids 1..7', () => {
++    expect(CASE_TYPES.map((c) => c.id).sort()).toEqual([1, 2, 3, 4, 5, 6, 7]);
++  });
++
++  it('marks ids 3,4,5,6,7 as high risk and 1,2 as not', () => {
++    expect([...HIGH_RISK_IDS].sort()).toEqual([3, 4, 5, 6, 7]);
++    expect(getCaseType(1).highRisk).toBe(false);
++    expect(getCaseType(3).highRisk).toBe(true);
++  });
++
++  it('every case type has at least one required slot and a non-empty skeleton', () => {
++    for (const c of CASE_TYPES) {
++      expect(c.slots.some((s) => s.required)).toBe(true);
++      expect(c.skeleton.length).toBeGreaterThan(20);
++      expect(c.bases.length).toBeGreaterThan(0);
++    }
++  });
++
++  it('high-risk types declare at least one law query for live verification', () => {
++    for (const c of CASE_TYPES) {
++      if (c.highRisk) expect(c.lawQueries.length).toBeGreaterThan(0);
++    }
++  });
++
++  it('every slot key is unique within its type', () => {
++    for (const c of CASE_TYPES) {
++      const keys = c.slots.map((s) => s.key);
++      expect(new Set(keys).size).toBe(keys.length);
++    }
++  });
++});
+diff --git a/vitest.config.ts b/vitest.config.ts
+index bb0d3ac..d1295b0 100644
+--- a/vitest.config.ts
++++ b/vitest.config.ts
+@@ -1,11 +1,12 @@
+ import { defineConfig } from 'vitest/config';
++import { fileURLToPath } from 'node:url';
+ 
+ export default defineConfig({
+   test: {
+     environment: 'node',
+     include: ['tests/**/*.test.ts'],
+   },
+   resolve: {
+-    alias: { '@': new URL('./', import.meta.url).pathname },
++    alias: { '@': fileURLToPath(new URL('./', import.meta.url)) },
+   },
+ });

@@ -8,6 +8,7 @@ describe('buildSystemPrompt', () => {
     expect(p).toContain('작은따옴표');
     expect(p).toMatch(/JSON/);
     expect(p).toContain('교사 이해용');
+    expect(p).toContain('신고 의무');
   });
 });
 
