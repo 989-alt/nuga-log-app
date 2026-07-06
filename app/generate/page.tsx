@@ -114,7 +114,7 @@ function GenerateInner() {
 
         <hr className="hairline" style={{ margin: '28px 0' }} />
 
-        <ApiKeyPanel onChange={setAi} />
+        <ApiKeyPanel onChange={setAi} defaultThinking={type.highRisk ? 'dynamic' : 'off'} />
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 18px', fontSize: 14, cursor: 'pointer' }}>
           <input type="checkbox" style={{ width: 'auto' }} checked={refineMode} onChange={(e) => setRefineMode(e.target.checked)} />
           <span>정밀 모드 <span className="muted" style={{ fontWeight: 400 }}>(2단계 생성 · 요청 2배 · 더 느림)</span></span>

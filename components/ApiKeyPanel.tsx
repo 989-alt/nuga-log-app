@@ -6,7 +6,7 @@ import { loadAiSettings, saveAiSettings } from '@/lib/aiSettings';
 
 const PROVIDER_LABEL: Record<AiProvider, string> = { gemini: 'Google Gemini', claude: 'Anthropic Claude', openai: 'OpenAI' };
 
-export default function ApiKeyPanel({ onChange }: { onChange: (cfg: AiConfig) => void }) {
+export default function ApiKeyPanel({ onChange, defaultThinking }: { onChange: (cfg: AiConfig) => void; defaultThinking: ThinkingLevel }) {
   const [cfg, setCfg] = useState<AiConfig>({ mode: 'free' });
   const [open, setOpen] = useState(false);
 
@@ -163,7 +163,7 @@ export default function ApiKeyPanel({ onChange }: { onChange: (cfg: AiConfig) =>
               <div className="field">
                 <label className="label">속도 / 품질 <span className="muted" style={{ fontWeight: 400 }}>(추론 강도)</span></label>
                 <select
-                  value={cfg.thinkingLevel ?? 'dynamic'}
+                  value={cfg.thinkingLevel ?? defaultThinking}
                   onChange={(e) => update({ ...cfg, thinkingLevel: e.target.value as ThinkingLevel })}
                 >
                   <option value="off">속도 우선 (추론 끔 · 가장 빠름)</option>
