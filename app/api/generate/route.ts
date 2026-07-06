@@ -11,7 +11,7 @@ export const maxDuration = 60;
 function messageForStatus(status: number, retryAfterSec?: number): string {
   if (status === 429) {
     const when = retryAfterSec ? `약 ${retryAfterSec}초 뒤` : '잠시 후';
-    return `요청 한도(429)에 도달했습니다. 무료 등급 키는 분당 약 20회 제한이 있습니다. ${when} 다시 시도할 수 있습니다. 자주 쓰신다면 "생성 엔진"에서 gemini-2.5-flash-lite처럼 여유 있는 모델을 고르거나, 결제가 설정된 키를 사용해 주세요.`;
+    return `요청 한도(429)에 도달했습니다. 무료 등급 키는 분당 요청 수가 제한됩니다. ${when} 다시 시도하거나, "생성 엔진"의 속도/품질을 낮추고 정밀 모드를 끄면 요청 수가 줄어 한도에 덜 걸립니다. 자주 쓰신다면 결제가 설정된 키를 권장합니다.`;
   }
   if (status === 401 || status === 403)
     return `API 키가 유효하지 않습니다(${status}). 키를 다시 확인해 주세요.`;

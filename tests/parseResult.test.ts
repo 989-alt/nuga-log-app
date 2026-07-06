@@ -110,7 +110,7 @@ describe('runGenerate — ladder + refine', () => {
   it('refine failure falls back to the draft with a warning', async () => {
     let n = 0;
     const fetchImpl = vi.fn(async () => { n += 1; return n === 1 ? gem(resultJson('초안')) : new Response('rate', { status: 429 }); }) as unknown as typeof fetch;
-    const out = await runGenerate({ ...baseReq2, refineMode: true }, { fetchImpl, geminiKey: 'K' });
+    const out = await runGenerate({ ...baseReq2, refineMode: true }, { fetchImpl, geminiKey: 'K', retryDelayMs: 0 });
     expect(out.body).toBe('초안');
     expect(out.refined).toBe(false);
     expect(out.warnings.some((w) => w.includes('정밀'))).toBe(true);
@@ -120,7 +120,7 @@ describe('runGenerate — ladder + refine', () => {
     const fetchImpl = vi.fn(async (url: string) =>
       String(url).includes('flash-lite') ? gem(resultJson('lite본문')) : new Response('rate', { status: 429 })
     ) as unknown as typeof fetch;
-    const out = await runGenerate(baseReq2, { fetchImpl, geminiKey: 'K' });
+    const out = await runGenerate(baseReq2, { fetchImpl, geminiKey: 'K', retryDelayMs: 0 });
     expect(out.usedModel).toBe('gemini-2.5-flash-lite');
     expect(out.fallbackNote).toContain('gemini-2.5-flash');
   });

@@ -43,7 +43,7 @@ function toStringArray(v: unknown): string[] {
 
 export async function runGenerate(
   req: GenerateRequest,
-  opts?: { fetchImpl?: typeof fetch; geminiKey?: string }
+  opts?: { fetchImpl?: typeof fetch; geminiKey?: string; retryDelayMs?: number }
 ): Promise<GenerateResult> {
   const missing = validateSlots(req.caseTypeId, req.slots);
   if (missing.length > 0) {
@@ -64,7 +64,7 @@ export async function runGenerate(
   const warnings: string[] = [];
 
   // 1단계 초안 (사다리 적용)
-  const draftCall = await callLlmLadder({ system, user, ai: req.ai, models, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey });
+  const draftCall = await callLlmLadder({ system, user, ai: req.ai, models, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey, retryDelayMs: opts?.retryDelayMs });
   let parsed = parseModelJson(draftCall.text);
   let usedModel = draftCall.usedModel;
   let refined = false;
@@ -85,7 +85,7 @@ export async function runGenerate(
           teacherMemo: parsed.teacherMemo,
         },
       });
-      const refineCall = await callLlmLadder({ system: buildCritiqueSystemPrompt(), user: critiqueUser, ai: req.ai, models, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey });
+      const refineCall = await callLlmLadder({ system: buildCritiqueSystemPrompt(), user: critiqueUser, ai: req.ai, models, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey, retryDelayMs: opts?.retryDelayMs });
       parsed = parseModelJson(refineCall.text);
       usedModel = refineCall.usedModel;
       refined = true;
