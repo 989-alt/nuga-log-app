@@ -11,6 +11,7 @@ import ResultBlocks from '@/components/ResultBlocks';
 import { addHistory, makeId } from '@/lib/history';
 
 type LastSubmit = { slots: Record<string, string>; isSpecialEd: boolean };
+const MAX_AUTO_RETRIES = 4;
 
 function GenerateInner() {
   const params = useSearchParams();
@@ -23,7 +24,9 @@ function GenerateInner() {
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState<number | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const lastSubmit = useRef<LastSubmit | null>(null);
+  const retryCount = useRef(0);
   const outputRef = useRef<HTMLDivElement>(null);
   const hadOutput = useRef(false);
 
@@ -34,7 +37,7 @@ function GenerateInner() {
     hadOutput.current = has;
   }, [result, error, cooldown]);
 
-  // 대기 카운트다운 → 0이 되면 자동으로 1회 재시도.
+  // 대기 카운트다운 → 0이 되면 자동으로 다시 시도(요청 한도가 풀릴 시간을 기다림).
   useEffect(() => {
     if (cooldown == null) return;
     if (cooldown <= 0) {
@@ -48,7 +51,11 @@ function GenerateInner() {
   }, [cooldown]);
 
   async function handleSubmit(slots: Record<string, string>, isSpecialEd: boolean, isRetry = false) {
-    if (!isRetry) lastSubmit.current = { slots, isSpecialEd };
+    if (!isRetry) {
+      lastSubmit.current = { slots, isSpecialEd };
+      retryCount.current = 0;
+      setAttempt(0);
+    }
     setSubmitting(true);
     setError(null);
     setResult(null);
@@ -61,9 +68,13 @@ function GenerateInner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        // 429 + 서버가 대기 시간을 알려줬고 아직 자동재시도 전이면 → 카운트다운.
-        if (res.status === 429 && data.retryAfterSec && !isRetry) {
+        // 429 + 대기 시간을 알고 있고, 자동 재시도 횟수가 남았으면 → 기다렸다 다시.
+        if (res.status === 429 && data.retryAfterSec && retryCount.current < MAX_AUTO_RETRIES) {
+          retryCount.current += 1;
+          setAttempt(retryCount.current);
           setCooldown(Math.min(Math.max(Number(data.retryAfterSec) || 30, 1), 90));
+        } else if (res.status === 429 && retryCount.current >= MAX_AUTO_RETRIES) {
+          setError('요청 한도가 계속 풀리지 않았습니다. 잠시 뒤 다시 시도하거나, "생성 엔진"에서 gemini-2.5-flash 등 여유 있는 모델로 바꿔 주세요. (pro 계열은 무료 한도가 매우 낮습니다.)');
         } else {
           setError(data.error ?? '생성에 실패했습니다.');
         }
@@ -78,7 +89,8 @@ function GenerateInner() {
     }
   }
 
-  const retryNow = () => { if (lastSubmit.current) void handleSubmit(lastSubmit.current.slots, lastSubmit.current.isSpecialEd, true); };
+  const tryNow = () => { setCooldown(null); if (lastSubmit.current) void handleSubmit(lastSubmit.current.slots, lastSubmit.current.isSpecialEd, true); };
+  const freshRetry = () => { if (lastSubmit.current) void handleSubmit(lastSubmit.current.slots, lastSubmit.current.isSpecialEd, false); };
 
   return (
     <>
@@ -105,21 +117,17 @@ function GenerateInner() {
             <div className="callout callout-warning" style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 14 }}>
               <span className="spinner" style={{ borderColor: 'rgba(138,97,0,.3)', borderTopColor: 'var(--warning)', flexShrink: 0 }} aria-hidden />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600 }}>요청 한도에 걸려 대기 중입니다</div>
-                <div style={{ fontSize: 13.5, marginTop: 2 }}>약 <strong>{cooldown}초</strong> 후 자동으로 다시 시도합니다. (무료 등급은 분당 약 20회 제한)</div>
+                <div style={{ fontWeight: 600 }}>요청 한도에 걸려 대기 중입니다 <span style={{ fontWeight: 400 }}>(재시도 {attempt}/{MAX_AUTO_RETRIES})</span></div>
+                <div style={{ fontSize: 13.5, marginTop: 2 }}>약 <strong>{cooldown}초</strong> 후 자동으로 다시 시도합니다. 요청은 한 번에 하나씩만 보냅니다.</div>
               </div>
-              <button type="button" className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0 }} onClick={() => { setCooldown(null); retryNow(); }}>
-                지금 시도
-              </button>
+              <button type="button" className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0 }} onClick={tryNow}>지금 시도</button>
             </div>
           )}
           {error && (
             <div className="callout callout-danger" style={{ marginTop: 28 }}>
               <div>{error}</div>
               {lastSubmit.current && (
-                <button type="button" className="btn btn-ghost" style={{ marginTop: 14, padding: '8px 14px', fontSize: 13 }} onClick={retryNow}>
-                  다시 시도
-                </button>
+                <button type="button" className="btn btn-ghost" style={{ marginTop: 14, padding: '8px 14px', fontSize: 13 }} onClick={freshRetry}>다시 시도</button>
               )}
             </div>
           )}

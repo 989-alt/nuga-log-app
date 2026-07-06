@@ -154,7 +154,7 @@ export default function ApiKeyPanel({ onChange }: { onChange: (cfg: AiConfig) =>
               )}
               {provider === 'gemini' && (
                 <div className="help" style={{ marginTop: 8 }}>
-                  무료 등급은 <strong style={{ fontWeight: 600 }}>gemini-2.5-flash</strong>가 분당 약 20회로 제한됩니다. 자주 쓰면 <strong style={{ fontWeight: 600 }}>gemini-2.5-flash-lite</strong>가 한도에 덜 걸립니다.
+                  무료 키는 <strong style={{ fontWeight: 600 }}>gemini-2.5-flash</strong>(분당 약 20회)나 <strong style={{ fontWeight: 600 }}>flash-lite</strong>를 권장합니다. <strong style={{ fontWeight: 600 }}>pro 계열</strong>은 품질이 가장 좋지만 무료 분당 한도가 매우 낮아, 결제가 설정된 키에서 원활합니다. 한도에 걸리면 앱이 자동으로 기다렸다 재시도합니다.
                 </div>
               )}
             </div>

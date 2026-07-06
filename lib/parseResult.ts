@@ -61,27 +61,12 @@ export async function runGenerate(
 
   const warnings: string[] = [];
 
+  // 생성 1회당 LLM 요청은 정확히 1번만 보낸다(요청 한도 절약·순차성).
+  // 금지 표현이 있으면 재생성(2차 호출) 대신 결정론적 치환으로 안전하게 처리한다.
   const raw1 = await callLlm({ system, user, ai: req.ai, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey });
-  let parsed = parseModelJson(raw1);
+  const parsed = parseModelJson(raw1);
 
-  const scanTarget = () => parsed.body + '\n' + parsed.meta.bases;
-  let hits = scanProhibited(scanTarget());
-  if (hits.length > 0) {
-    // Regenerate once with a stricter instruction naming the offending phrases.
-    // If this second call fails (e.g., a rate-limit 429), keep the first draft —
-    // the deterministic applyConversions below still scrubs the flagged phrases,
-    // so a transient failure never discards a usable result.
-    const stricter = user + '\n\n주의: 이전 초안에 다음 금지 표현이 있었다: ' +
-      hits.map((h) => `'${h.matched}'`).join(', ') +
-      '. 이 표현들을 제거하고 묘사 표현으로 바꿔 다시 작성하라.';
-    try {
-      const raw2 = await callLlm({ system, user: stricter, ai: req.ai, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey });
-      parsed = parseModelJson(raw2);
-      hits = scanProhibited(scanTarget());
-    } catch {
-      /* keep first draft; conversion below scrubs the phrases */
-    }
-  }
+  const hits = scanProhibited(parsed.body + '\n' + parsed.meta.bases);
 
   if (hits.length > 0) {
     const convBody = applyConversions(parsed.body);
