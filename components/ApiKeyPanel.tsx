@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import type { AiConfig, AiProvider } from '@/lib/types';
+import type { AiConfig, AiProvider, ThinkingLevel } from '@/lib/types';
 import { DEFAULT_MODELS } from '@/lib/llm';
 import { loadAiSettings, saveAiSettings } from '@/lib/aiSettings';
 
@@ -151,6 +151,20 @@ export default function ApiKeyPanel({ onChange }: { onChange: (cfg: AiConfig) =>
                     </button>
                   </div>
                 </>
+              )}
+              {provider === 'gemini' && (
+                <div className="field">
+                  <label className="label">속도 / 품질 <span className="muted" style={{ fontWeight: 400 }}>(추론 강도)</span></label>
+                  <select
+                    value={cfg.thinkingLevel ?? 'dynamic'}
+                    onChange={(e) => update({ ...cfg, thinkingLevel: e.target.value as ThinkingLevel })}
+                  >
+                    <option value="off">속도 우선 (추론 끔 · 가장 빠름)</option>
+                    <option value="light">균형 (약한 추론)</option>
+                    <option value="dynamic">품질 우선 (추론 자동 · 가장 느림)</option>
+                  </select>
+                  <div className="help">일반 사안은 '속도 우선'으로 충분하고, 고위험 사안은 '품질 우선'을 권장합니다.</div>
+                </div>
               )}
               {provider === 'gemini' && (
                 <div className="help" style={{ marginTop: 8 }}>

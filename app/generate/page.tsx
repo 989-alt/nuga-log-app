@@ -20,6 +20,7 @@ function GenerateInner() {
   const type = getCaseType(caseTypeId);
 
   const [ai, setAi] = useState<AiConfig>({ mode: 'free' });
+  const [refineMode, setRefineMode] = useState<boolean>(type.highRisk);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +62,14 @@ function GenerateInner() {
     setResult(null);
     setCooldown(null);
     try {
+      const aiForRequest: AiConfig = {
+        ...ai,
+        thinkingLevel: ai.thinkingLevel ?? (type.highRisk ? 'dynamic' : 'off'),
+      };
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ caseTypeId, slots, isSpecialEd, ai }),
+        body: JSON.stringify({ caseTypeId, slots, isSpecialEd, ai: aiForRequest, refineMode }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -110,6 +115,10 @@ function GenerateInner() {
         <hr className="hairline" style={{ margin: '28px 0' }} />
 
         <ApiKeyPanel onChange={setAi} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 18px', fontSize: 14, cursor: 'pointer' }}>
+          <input type="checkbox" style={{ width: 'auto' }} checked={refineMode} onChange={(e) => setRefineMode(e.target.checked)} />
+          <span>정밀 모드 <span className="muted" style={{ fontWeight: 400 }}>(2단계 생성 · 요청 2배 · 더 느림)</span></span>
+        </label>
         <SlotForm caseTypeId={caseTypeId} onSubmit={(s, e) => handleSubmit(s, e)} submitting={submitting || cooldown != null} />
 
         <div ref={outputRef}>
@@ -131,7 +140,18 @@ function GenerateInner() {
               )}
             </div>
           )}
-          {result && <div style={{ marginTop: 32 }}><ResultBlocks result={result} /></div>}
+          {result && (
+            <div style={{ marginTop: 32 }}>
+              {(result.usedModel || result.refined || result.fallbackNote) && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, fontSize: 12.5 }}>
+                  {result.usedModel && <span className="badge">{result.usedModel}</span>}
+                  {result.refined && <span className="badge">정밀 2단계</span>}
+                  {result.fallbackNote && <span className="badge badge-risk">{result.fallbackNote}</span>}
+                </div>
+              )}
+              <ResultBlocks result={result} />
+            </div>
+          )}
         </div>
       </main>
     </>
