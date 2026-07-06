@@ -69,3 +69,59 @@ describe('runGenerate', () => {
     expect(out.warnings.length).toBeGreaterThan(0);
   });
 });
+
+function resultJson(body: string) {
+  return JSON.stringify({
+    body,
+    meta: { bases: 'b', caseType: '일반 생활지도', charCount: '약 100자', guidanceStep: '주의', guardianNotice: '해당 없음', followUp: 'f' },
+    teacherUnderstanding: ['u1'],
+    safeGuidance: ['s1'],
+    teacherMemo: ['m1'],
+  });
+}
+function gem(text: string, status = 200) {
+  return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), { status });
+}
+const baseReq2: GenerateRequest = {
+  caseTypeId: 1,
+  slots: { datetime: '2026.7.6.', place: '교실', behavior: '떠듦', teacherUtterance: '조용히', studentUtterance: '네', guidanceStep: '주의', studentReaction: '조용', followUp: '관찰' },
+  isSpecialEd: false,
+  ai: { mode: 'free' },
+};
+
+describe('runGenerate — ladder + refine', () => {
+  it('single pass returns the model result and usedModel', async () => {
+    const fetchImpl = vi.fn(async () => gem(resultJson('초안본문'))) as unknown as typeof fetch;
+    const out = await runGenerate(baseReq2, { fetchImpl, geminiKey: 'K' });
+    expect(out.body).toBe('초안본문');
+    expect(out.usedModel).toBe('gemini-2.5-flash');
+    expect(out.refined).toBe(false);
+  });
+
+  it('refine mode makes a second call and returns the refined body', async () => {
+    let n = 0;
+    const fetchImpl = vi.fn(async () => { n += 1; return gem(resultJson(n === 1 ? '초안' : '정밀본문')); }) as unknown as typeof fetch;
+    const out = await runGenerate({ ...baseReq2, refineMode: true }, { fetchImpl, geminiKey: 'K' });
+    expect(out.body).toBe('정밀본문');
+    expect(out.refined).toBe(true);
+    expect(n).toBe(2);
+  });
+
+  it('refine failure falls back to the draft with a warning', async () => {
+    let n = 0;
+    const fetchImpl = vi.fn(async () => { n += 1; return n === 1 ? gem(resultJson('초안')) : new Response('rate', { status: 429 }); }) as unknown as typeof fetch;
+    const out = await runGenerate({ ...baseReq2, refineMode: true }, { fetchImpl, geminiKey: 'K' });
+    expect(out.body).toBe('초안');
+    expect(out.refined).toBe(false);
+    expect(out.warnings.some((w) => w.includes('정밀'))).toBe(true);
+  });
+
+  it('sets fallbackNote when the preferred model is degraded', async () => {
+    const fetchImpl = vi.fn(async (url: string) =>
+      String(url).includes('flash-lite') ? gem(resultJson('lite본문')) : new Response('rate', { status: 429 })
+    ) as unknown as typeof fetch;
+    const out = await runGenerate(baseReq2, { fetchImpl, geminiKey: 'K' });
+    expect(out.usedModel).toBe('gemini-2.5-flash-lite');
+    expect(out.fallbackNote).toContain('gemini-2.5-flash');
+  });
+});
