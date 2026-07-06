@@ -1,7 +1,9 @@
 import type { AiConfig, AiProvider } from '@/lib/types';
 
 export const DEFAULT_MODELS: Record<AiProvider, string> = {
-  gemini: 'gemini-2.0-flash',
+  // gemini-2.5-flash is in the current free tier; gemini-2.0-flash's free-tier
+  // request quota was set to 0 by Google (retired from free tier), causing 429.
+  gemini: 'gemini-2.5-flash',
   claude: 'claude-haiku-4-5-20251001',
   openai: 'gpt-4o-mini',
 };
