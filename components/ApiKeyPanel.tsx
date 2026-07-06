@@ -153,25 +153,26 @@ export default function ApiKeyPanel({ onChange }: { onChange: (cfg: AiConfig) =>
                 </>
               )}
               {provider === 'gemini' && (
-                <div className="field">
-                  <label className="label">속도 / 품질 <span className="muted" style={{ fontWeight: 400 }}>(추론 강도)</span></label>
-                  <select
-                    value={cfg.thinkingLevel ?? 'dynamic'}
-                    onChange={(e) => update({ ...cfg, thinkingLevel: e.target.value as ThinkingLevel })}
-                  >
-                    <option value="off">속도 우선 (추론 끔 · 가장 빠름)</option>
-                    <option value="light">균형 (약한 추론)</option>
-                    <option value="dynamic">품질 우선 (추론 자동 · 가장 느림)</option>
-                  </select>
-                  <div className="help">일반 사안은 '속도 우선'으로 충분하고, 고위험 사안은 '품질 우선'을 권장합니다.</div>
-                </div>
-              )}
-              {provider === 'gemini' && (
                 <div className="help" style={{ marginTop: 8 }}>
                   무료 키는 <strong style={{ fontWeight: 600 }}>gemini-2.5-flash</strong>(분당 약 20회)나 <strong style={{ fontWeight: 600 }}>flash-lite</strong>를 권장합니다. <strong style={{ fontWeight: 600 }}>pro 계열</strong>은 품질이 가장 좋지만 무료 분당 한도가 매우 낮아, 결제가 설정된 키에서 원활합니다. 한도에 걸리면 앱이 자동으로 기다렸다 재시도합니다.
                 </div>
               )}
             </div>
+
+            {provider === 'gemini' && (
+              <div className="field">
+                <label className="label">속도 / 품질 <span className="muted" style={{ fontWeight: 400 }}>(추론 강도)</span></label>
+                <select
+                  value={cfg.thinkingLevel ?? 'dynamic'}
+                  onChange={(e) => update({ ...cfg, thinkingLevel: e.target.value as ThinkingLevel })}
+                >
+                  <option value="off">속도 우선 (추론 끔 · 가장 빠름)</option>
+                  <option value="light">균형 (약한 추론)</option>
+                  <option value="dynamic">품질 우선 (추론 자동 · 가장 느림)</option>
+                </select>
+                <div className="help">일반 사안은 '속도 우선'으로 충분하고, 고위험 사안은 '품질 우선'을 권장합니다.</div>
+              </div>
+            )}
           </div>
         )}
       </div>
