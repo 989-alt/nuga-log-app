@@ -183,6 +183,46 @@ const FALLBACK_TAILS: Record<AiProvider, string[]> = {
   openai: [DEFAULT_MODELS.openai],
 };
 
+/** 사다리를 순회하며 429/503이면 다음 모델로 강등한다. 성공 모델을 함께 반환. */
+export async function callLlmLadder(args: {
+  system: string;
+  user: string;
+  ai: AiConfig;
+  models: string[];
+  fetchImpl?: typeof fetch;
+  geminiKey?: string;
+  retryDelayMs?: number;
+}): Promise<{ text: string; usedModel: string }> {
+  const doFetch = args.fetchImpl ?? fetch;
+  const delay = args.retryDelayMs ?? 2000;
+  const thinking = args.ai.thinkingLevel;
+  const provider: AiProvider = args.ai.mode === 'free' ? 'gemini' : (args.ai.provider ?? 'gemini');
+  const key = args.ai.mode === 'free' ? (args.geminiKey ?? '') : (args.ai.apiKey ?? '');
+  if (!key) throw new Error('AI 키가 없습니다');
+  const models = args.models.length > 0 ? args.models : [DEFAULT_MODELS[provider]];
+
+  let lastErr: unknown;
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    try {
+      let text: string;
+      switch (provider) {
+        case 'gemini': text = await callGemini(args.system, args.user, key, model, doFetch, delay, thinking); break;
+        case 'claude': text = await callClaude(args.system, args.user, key, model, doFetch, delay); break;
+        case 'openai': text = await callOpenai(args.system, args.user, key, model, doFetch, delay); break;
+        default: throw new Error('지원하지 않는 provider');
+      }
+      return { text, usedModel: model };
+    } catch (e) {
+      lastErr = e;
+      const degradable = e instanceof LlmError && (e.status === 429 || e.status === 503);
+      if (degradable && i < models.length - 1) continue;
+      throw e;
+    }
+  }
+  throw lastErr;
+}
+
 /** 선호 모델 + 제공자별 저비용 폴백 꼬리. 중복 제거, 순서 유지. */
 export function buildLadder(ai: AiConfig): string[] {
   const provider: AiProvider = ai.mode === 'free' ? 'gemini' : (ai.provider ?? 'gemini');

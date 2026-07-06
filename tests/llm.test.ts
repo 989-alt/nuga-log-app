@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { callLlm, buildLadder, DEFAULT_MODELS, LlmError } from '@/lib/llm';
+import { callLlm, callLlmLadder, buildLadder, DEFAULT_MODELS, LlmError } from '@/lib/llm';
 
 function geminiResponse(text: string) {
   return new Response(
@@ -132,5 +132,46 @@ describe('buildLadder', () => {
   it('openai falls back to gpt-4o-mini', () => {
     expect(buildLadder({ mode: 'byok', provider: 'openai', apiKey: 'K', model: 'gpt-4o' }))
       .toEqual(['gpt-4o', 'gpt-4o-mini']);
+  });
+});
+
+describe('callLlmLadder', () => {
+  it('falls back to the next model on 429 and reports usedModel', async () => {
+    const spy = vi.fn(async (url: string) => {
+      return String(url).includes('gemini-2.5-flash-lite')
+        ? geminiResponse('lite결과')
+        : new Response('rate', { status: 429 });
+    }) as unknown as typeof fetch;
+    const out = await callLlmLadder({
+      system: 's', user: 'u', ai: { mode: 'free' },
+      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      geminiKey: 'K', fetchImpl: spy, retryDelayMs: 0,
+    });
+    expect(out.text).toBe('lite결과');
+    expect(out.usedModel).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('returns the first model when it succeeds', async () => {
+    const spy = vi.fn(async () => geminiResponse('flash결과')) as unknown as typeof fetch;
+    const out = await callLlmLadder({
+      system: 's', user: 'u', ai: { mode: 'free' },
+      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      geminiKey: 'K', fetchImpl: spy, retryDelayMs: 0,
+    });
+    expect(out.usedModel).toBe('gemini-2.5-flash');
+  });
+
+  it('throws LlmError when every rung is rate-limited', async () => {
+    const spy = vi.fn(async () => new Response('rate', { status: 429 })) as unknown as typeof fetch;
+    let err: any;
+    try {
+      await callLlmLadder({
+        system: 's', user: 'u', ai: { mode: 'free' },
+        models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+        geminiKey: 'K', fetchImpl: spy, retryDelayMs: 0,
+      });
+    } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(LlmError);
+    expect(err.status).toBe(429);
   });
 });
