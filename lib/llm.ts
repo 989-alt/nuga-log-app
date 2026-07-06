@@ -1,4 +1,4 @@
-import type { AiConfig, AiProvider } from '@/lib/types';
+import type { AiConfig, AiProvider, ThinkingLevel } from '@/lib/types';
 
 export const DEFAULT_MODELS: Record<AiProvider, string> = {
   // gemini-2.5-flash is in the current free tier; gemini-2.0-flash's free-tier
@@ -42,7 +42,7 @@ export async function callLlm(args: CallArgs): Promise<string> {
   if (args.ai.mode === 'free') {
     const key = args.geminiKey ?? '';
     if (!key) throw new Error('AI 키가 없습니다');
-    return callGemini(args.system, args.user, key, DEFAULT_MODELS.gemini, doFetch, delay);
+    return callGemini(args.system, args.user, key, DEFAULT_MODELS.gemini, doFetch, delay, args.ai.thinkingLevel);
   }
   const provider = args.ai.provider;
   const key = args.ai.apiKey ?? '';
@@ -50,7 +50,7 @@ export async function callLlm(args: CallArgs): Promise<string> {
   const model = args.ai.model && args.ai.model.trim() !== '' ? args.ai.model.trim() : undefined;
   switch (provider) {
     case 'gemini':
-      return callGemini(args.system, args.user, key, model ?? DEFAULT_MODELS.gemini, doFetch, delay);
+      return callGemini(args.system, args.user, key, model ?? DEFAULT_MODELS.gemini, doFetch, delay, args.ai.thinkingLevel);
     case 'claude':
       return callClaude(args.system, args.user, key, model ?? DEFAULT_MODELS.claude, doFetch, delay);
     case 'openai':
@@ -112,15 +112,23 @@ async function requestWithRetry(
   }
 }
 
-async function callGemini(system: string, user: string, key: string, model: string, doFetch: typeof fetch, delayMs: number): Promise<string> {
+/** Gemini thinkingBudget 매핑. dynamic/미지정은 thinkingConfig 자체를 생략(모델 자율). */
+function thinkingConfigFor(level?: ThinkingLevel): { thinkingBudget: number } | undefined {
+  if (level === 'off') return { thinkingBudget: 0 };
+  if (level === 'light') return { thinkingBudget: 512 };
+  return undefined;
+}
+
+async function callGemini(system: string, user: string, key: string, model: string, doFetch: typeof fetch, delayMs: number, thinking?: ThinkingLevel): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+  const tc = thinkingConfigFor(thinking);
   const res = await requestWithRetry(doFetch, url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: 'user', parts: [{ text: user }] }],
-      generationConfig: { temperature: 0.3 },
+      generationConfig: { temperature: 0.3, ...(tc ? { thinkingConfig: tc } : {}) },
     }),
   }, 'gemini', delayMs);
   const data: any = await res.json();

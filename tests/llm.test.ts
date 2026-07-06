@@ -85,4 +85,26 @@ describe('callLlm', () => {
     expect(err.retryAfterSec).toBe(26); // ceil(25.9)
     expect((spy as any).mock.calls.length).toBe(1); // long wait → handed to client, not retried in-process
   });
+
+  it('maps thinkingLevel off to thinkingBudget 0 in the Gemini request', async () => {
+    const spy = vi.fn(async () => geminiResponse('ok')) as unknown as typeof fetch;
+    await callLlm({
+      system: 's', user: 'u',
+      ai: { mode: 'free', thinkingLevel: 'off' },
+      geminiKey: 'K', fetchImpl: spy, retryDelayMs: 0,
+    });
+    const body = JSON.parse((spy as any).mock.calls[0][1].body);
+    expect(body.generationConfig.thinkingConfig.thinkingBudget).toBe(0);
+  });
+
+  it('omits thinkingConfig when thinkingLevel is dynamic or unset', async () => {
+    const spy = vi.fn(async () => geminiResponse('ok')) as unknown as typeof fetch;
+    await callLlm({
+      system: 's', user: 'u',
+      ai: { mode: 'free', thinkingLevel: 'dynamic' },
+      geminiKey: 'K', fetchImpl: spy, retryDelayMs: 0,
+    });
+    const body = JSON.parse((spy as any).mock.calls[0][1].body);
+    expect(body.generationConfig.thinkingConfig).toBeUndefined();
+  });
 });
