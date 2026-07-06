@@ -22,11 +22,15 @@ export interface CaseType {
 
 export type AiProvider = 'gemini' | 'claude' | 'openai';
 
+// Gemini 추론(thinking) 예산 스위치. off=0, light=512, dynamic=모델 자율(현재 기본).
+export type ThinkingLevel = 'off' | 'light' | 'dynamic';
+
 export interface AiConfig {
   mode: 'free' | 'byok';
   provider?: AiProvider;
   apiKey?: string;
   model?: string;
+  thinkingLevel?: ThinkingLevel;
 }
 
 export interface GenerateRequest {
@@ -34,6 +38,7 @@ export interface GenerateRequest {
   slots: Record<string, string>;
   isSpecialEd: boolean;
   ai: AiConfig;
+  refineMode?: boolean;
 }
 
 export interface ResultMeta {
@@ -52,4 +57,7 @@ export interface GenerateResult {
   safeGuidance: string[];
   teacherMemo: string[];
   warnings: string[];
+  usedModel?: string;
+  fallbackNote?: string;
+  refined?: boolean;
 }
