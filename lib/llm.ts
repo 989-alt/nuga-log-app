@@ -176,3 +176,17 @@ async function callOpenai(system: string, user: string, key: string, model: stri
   if (!text) throw new Error('OpenAI 응답이 비어 있습니다');
   return text;
 }
+
+const FALLBACK_TAILS: Record<AiProvider, string[]> = {
+  gemini: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+  claude: [DEFAULT_MODELS.claude],
+  openai: [DEFAULT_MODELS.openai],
+};
+
+/** 선호 모델 + 제공자별 저비용 폴백 꼬리. 중복 제거, 순서 유지. */
+export function buildLadder(ai: AiConfig): string[] {
+  const provider: AiProvider = ai.mode === 'free' ? 'gemini' : (ai.provider ?? 'gemini');
+  const preferred = (ai.model && ai.model.trim() !== '') ? ai.model.trim() : DEFAULT_MODELS[provider];
+  const ladder = [preferred, ...FALLBACK_TAILS[provider]];
+  return ladder.filter((m, i) => ladder.indexOf(m) === i);
+}

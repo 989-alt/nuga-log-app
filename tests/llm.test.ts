@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { callLlm, DEFAULT_MODELS, LlmError } from '@/lib/llm';
+import { callLlm, buildLadder, DEFAULT_MODELS, LlmError } from '@/lib/llm';
 
 function geminiResponse(text: string) {
   return new Response(
@@ -106,5 +106,31 @@ describe('callLlm', () => {
     });
     const body = JSON.parse((spy as any).mock.calls[0][1].body);
     expect(body.generationConfig.thinkingConfig).toBeUndefined();
+  });
+});
+
+describe('buildLadder', () => {
+  it('free mode → [flash, flash-lite]', () => {
+    expect(buildLadder({ mode: 'free' })).toEqual(['gemini-2.5-flash', 'gemini-2.5-flash-lite']);
+  });
+
+  it('byok gemini with pro preferred → [pro, flash, flash-lite], deduped', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'gemini', apiKey: 'K', model: 'gemini-2.5-pro' }))
+      .toEqual(['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']);
+  });
+
+  it('byok gemini preferring flash does not duplicate flash', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'gemini', apiKey: 'K', model: 'gemini-2.5-flash' }))
+      .toEqual(['gemini-2.5-flash', 'gemini-2.5-flash-lite']);
+  });
+
+  it('claude falls back to haiku', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'claude', apiKey: 'K', model: 'claude-opus-4-8' }))
+      .toEqual(['claude-opus-4-8', 'claude-haiku-4-5-20251001']);
+  });
+
+  it('openai falls back to gpt-4o-mini', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'openai', apiKey: 'K', model: 'gpt-4o' }))
+      .toEqual(['gpt-4o', 'gpt-4o-mini']);
   });
 });
