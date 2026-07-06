@@ -1,67 +1,88 @@
 'use client';
 import { useState } from 'react';
 import type { GenerateResult } from '@/lib/types';
+import { neisText } from '@/lib/format';
 
-function neisText(r: GenerateResult): string {
-  return [
-    '[NEIS 누가기록 — 복사·붙여넣기용 / 평어 종결]',
-    '',
-    r.body,
-    '',
-    `[근거] ${r.meta.bases}`,
-    `[유형] ${r.meta.caseType}`,
-    `[글자수] ${r.meta.charCount}`,
-    `[지도 단계] ${r.meta.guidanceStep}`,
-    `[보호자 통보] ${r.meta.guardianNotice}`,
-    `[후속] ${r.meta.followUp}`,
-  ].join('\n');
-}
+type Copied = 'body' | 'all' | null;
 
-function Block({ title, items }: { title: string; items: string[] }) {
-  if (items.length === 0) return null;
+export default function ResultBlocks({ result }: { result: GenerateResult }) {
+  const [copied, setCopied] = useState<Copied>(null);
+
+  async function copy(which: Copied, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(which);
+      setTimeout(() => setCopied((c) => (c === which ? null : c)), 1500);
+    } catch { /* 클립보드 차단 시 사용자가 직접 선택 복사 */ }
+  }
+
+  const metaRows: [string, string][] = [
+    ['근거', result.meta.bases],
+    ['유형', result.meta.caseType],
+    ['글자수', result.meta.charCount],
+    ['지도 단계', result.meta.guidanceStep],
+    ['보호자 통보', result.meta.guardianNotice],
+    ['후속', result.meta.followUp],
+  ];
+
   return (
-    <div className="card" style={{ marginTop: 24 }}>
-      <div style={{ fontSize: 12, color: 'var(--color-smoke)', marginBottom: 12 }}>{title} · NEIS에 붙여넣지 말 것</div>
-      <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--color-steel)', fontSize: 16, lineHeight: 1.5 }}>
-        {items.map((it, i) => <li key={i} style={{ marginBottom: 8 }}>{it}</li>)}
-      </ul>
+    <div style={{ display: 'grid', gap: 20 }}>
+      {result.warnings.length > 0 && (
+        <div className="callout callout-warning">
+          {result.warnings.map((w, i) => <div key={i}>{w}</div>)}
+        </div>
+      )}
+
+      {/* 핵심 산출물 — NEIS 본문 */}
+      <div className="card" style={{ borderLeft: '3px solid var(--accent)', padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '18px 24px', borderBottom: '1px solid var(--line)', background: 'var(--surface-sunken)' }}>
+          <span className="badge badge-normal">NEIS 붙여넣기용 · 평어 종결</span>
+          <span style={{ display: 'inline-flex', gap: 8 }}>
+            <button type="button" className="btn btn-primary" style={{ padding: '9px 16px', fontSize: 13.5 }} onClick={() => copy('body', result.body)}>
+              {copied === 'body' ? '✓ 복사됨' : '본문 복사'}
+            </button>
+            <button type="button" className="btn btn-ghost" style={{ padding: '9px 16px', fontSize: 13.5 }} onClick={() => copy('all', neisText(result))}>
+              {copied === 'all' ? '✓ 복사됨' : '전체 복사'}
+            </button>
+          </span>
+        </div>
+
+        <div style={{ padding: '22px 24px' }}>
+          <p style={{ fontSize: 16.5, lineHeight: 1.95, color: 'var(--ink)', wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
+            {result.body}
+          </p>
+        </div>
+
+        <dl style={{ margin: 0, padding: '4px 24px 22px', display: 'grid', gap: 1, background: 'var(--line)', borderTop: '1px solid var(--line)' }}>
+          {metaRows.map(([k, v]) => (
+            <div key={k} style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 14, background: 'var(--surface)', padding: '11px 0' }}>
+              <dt style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)' }}>{k}</dt>
+              <dd style={{ margin: 0, fontSize: 14, color: 'var(--ink-soft)', wordBreak: 'keep-all', overflowWrap: 'break-word' }}>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <TeacherBlock title="교사 이해용 — 법령·판례 풀이" items={result.teacherUnderstanding} />
+      <TeacherBlock title="향후 안전한 지도 방법" items={result.safeGuidance} />
+      <TeacherBlock title="교사 보관 메모" items={result.teacherMemo} />
     </div>
   );
 }
 
-export default function ResultBlocks({ result }: { result: GenerateResult }) {
-  const [copied, setCopied] = useState(false);
-  const text = neisText(result);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard blocked; user can select manually */
-    }
-  }
-
+function TeacherBlock({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
   return (
-    <div>
-      {result.warnings.length > 0 && (
-        <div className="card" style={{ borderColor: 'var(--color-lavender-border)', background: 'var(--color-periwinkle-wash)', marginBottom: 24 }}>
-          {result.warnings.map((w, i) => (
-            <div key={i} style={{ fontSize: 14, color: 'var(--color-midnight-ink)' }}>{w}</div>
-          ))}
-        </div>
-      )}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: 'var(--color-smoke)' }}>NEIS 복사·붙여넣기용</div>
-          <button className="btn btn-ghost" type="button" onClick={copy}>{copied ? '복사됨' : '본문+메타 복사'}</button>
-        </div>
-        <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 16, lineHeight: 1.6, margin: 0 }}>{text}</pre>
+    <div className="card">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>{title}</span>
+        <span className="badge" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>NEIS에 붙여넣지 말 것</span>
       </div>
-      <Block title="교사 이해용 — 법령·판례 풀이" items={result.teacherUnderstanding} />
-      <Block title="향후 안전한 지도 방법 — 교사용" items={result.safeGuidance} />
-      <Block title="교사 보관 메모" items={result.teacherMemo} />
+      <ul style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 9 }}>
+        {items.map((it, i) => (
+          <li key={i} style={{ fontSize: 15, color: 'var(--ink-soft)', lineHeight: 1.7, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>{it}</li>
+        ))}
+      </ul>
     </div>
   );
 }

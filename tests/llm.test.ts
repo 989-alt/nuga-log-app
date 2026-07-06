@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { callLlm, DEFAULT_MODELS } from '@/lib/llm';
+import { callLlm, DEFAULT_MODELS, LlmError } from '@/lib/llm';
 
 function geminiResponse(text: string) {
   return new Response(
@@ -47,5 +47,42 @@ describe('callLlm', () => {
     await expect(
       callLlm({ system: 's', user: 'u', ai: { mode: 'free' }, geminiKey: '' })
     ).rejects.toThrow('AI 키가 없습니다');
+  });
+
+  it('retries once on 429 then succeeds', async () => {
+    let n = 0;
+    const spy = vi.fn(async () => {
+      n += 1;
+      return n === 1 ? new Response('rate', { status: 429 }) : geminiResponse('재시도성공');
+    }) as unknown as typeof fetch;
+    const out = await callLlm({ system: 's', user: 'u', ai: { mode: 'free' }, geminiKey: 'K', fetchImpl: spy, retryDelayMs: 0 });
+    expect(out).toBe('재시도성공');
+    expect((spy as any).mock.calls.length).toBe(2);
+  });
+
+  it('throws LlmError carrying the upstream status on persistent 429', async () => {
+    const spy = vi.fn(async () => new Response('rate', { status: 429 })) as unknown as typeof fetch;
+    let err: any;
+    try {
+      await callLlm({ system: 's', user: 'u', ai: { mode: 'free' }, geminiKey: 'K', fetchImpl: spy, retryDelayMs: 0 });
+    } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(LlmError);
+    expect(err.status).toBe(429);
+    // one initial + one retry, then give up
+    expect((spy as any).mock.calls.length).toBe(2);
+  });
+
+  it('surfaces retryAfterSec from a long Gemini wait without holding the server open', async () => {
+    const spy = vi.fn(async () =>
+      new Response(JSON.stringify({ error: { code: 429, message: 'Quota exceeded. Please retry in 25.9s' } }), { status: 429 })
+    ) as unknown as typeof fetch;
+    let err: any;
+    try {
+      await callLlm({ system: 's', user: 'u', ai: { mode: 'free' }, geminiKey: 'K', fetchImpl: spy, retryDelayMs: 0 });
+    } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(LlmError);
+    expect(err.status).toBe(429);
+    expect(err.retryAfterSec).toBe(26); // ceil(25.9)
+    expect((spy as any).mock.calls.length).toBe(1); // long wait → handed to client, not retried in-process
   });
 });
