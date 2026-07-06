@@ -24,9 +24,9 @@ describe('validateSlots', () => {
 });
 
 describe('maskOtherStudentNames', () => {
-  it('replaces a single other-student name with 다른 학생', () => {
+  it('replaces a single other-student name with 다른 학생, preserving the trailing particle', () => {
     expect(maskOtherStudentNames('본인이 서연이 필통을 떨어뜨림', ['서연'])).toBe(
-      '본인이 다른 학생이 필통을 떨어뜨림'.replace('다른 학생이', '다른 학생')
+      '본인이 다른 학생이 필통을 떨어뜨림'
     );
   });
 
@@ -38,5 +38,22 @@ describe('maskOtherStudentNames', () => {
     const out = maskOtherStudentNames('민수와 지훈이 다툼', ['민수', '지훈']);
     expect(out).toContain('다른 학생');
     expect(out).toContain('B');
+  });
+
+  it('assigns labels by distinct name, not array index (duplicate then distinct)', () => {
+    const out = maskOtherStudentNames('민수 민수 지훈', ['민수', '민수', '지훈']);
+    // 지훈 is only the 2nd distinct name, so it must become 'B', not 'C'.
+    expect(out).toBe('다른 학생 다른 학생 B');
+  });
+
+  it('does not strip characters from an unrelated following word (no particle over-match)', () => {
+    expect(maskOtherStudentNames('서연이야기를 들음', ['서연'])).toBe(
+      '다른 학생이야기를 들음'
+    );
+  });
+
+  it('replaces longer names first so a shorter substring name cannot corrupt them', () => {
+    const out = maskOtherStudentNames('민수', ['수', '민수']);
+    expect(out).not.toContain('민수');
   });
 });

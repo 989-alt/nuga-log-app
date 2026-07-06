@@ -16,17 +16,35 @@ export function validateSlots(
 }
 
 export function maskOtherStudentNames(text: string, names: string[]): string {
-  if (!names || names.length === 0) return text;
+  const trimmed = (names ?? []).map((n) => (n ?? '').trim()).filter((n) => n !== '');
+  if (trimmed.length === 0) return text;
+
+  // Build a distinct, order-preserving list so labels are assigned by
+  // distinct-name index rather than raw array index (fixes label drift
+  // when the same name is repeated in the input array).
+  const distinctNames: string[] = [];
+  for (const name of trimmed) {
+    if (!distinctNames.includes(name)) distinctNames.push(name);
+  }
+
   const labels = ['다른 학생', 'B', 'C', 'D', 'E'];
+  const labelFor = (i: number) => labels[i] ?? `학생${i + 1}`;
+
+  // Replace longer names first so a shorter name that happens to be a
+  // substring of a longer one (e.g. '수' inside '민수') can't corrupt it.
+  const order = distinctNames
+    .map((name, i) => ({ name, label: labelFor(i) }))
+    .sort((a, b) => b.name.length - a.name.length);
+
   let out = text;
-  names
-    .filter((n) => n && n.trim() !== '')
-    .forEach((name, i) => {
-      const label = labels[i] ?? `학생${i + 1}`;
-      // Replace the name and an optional trailing Korean subject/topic particle.
-      const pattern = new RegExp(escapeRegExp(name.trim()) + '(이|가|은|는|을|를|와|과|의|한테|에게|이가)?', 'g');
-      out = out.replace(pattern, label);
-    });
+  for (const { name, label } of order) {
+    // Replace the bare name only; do not strip any following particle.
+    // Removing e.g. '이' after '서연' in '서연이야기' would mangle the
+    // unrelated word '이야기', and leaving the particle in place after
+    // replacing with '다른 학생' still reads as grammatically correct Korean.
+    const pattern = new RegExp(escapeRegExp(name), 'g');
+    out = out.replace(pattern, label);
+  }
   return out;
 }
 
