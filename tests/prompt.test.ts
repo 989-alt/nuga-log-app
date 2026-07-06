@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/prompt';
+import { buildCritiqueSystemPrompt, buildCritiquePrompt } from '@/lib/prompt';
 
 describe('buildSystemPrompt', () => {
   it('includes the core rules: 평어 종결, 단정 금지, JSON-only', () => {
@@ -36,5 +37,28 @@ describe('buildUserPrompt', () => {
     expect(p).toContain('제15조');
     expect(p).toContain('실시간 검증');
     expect(p).toContain('20260602');
+  });
+});
+
+describe('critique prompt', () => {
+  const draft = {
+    body: '수업 중 떠들었음 그냥요',
+    meta: { bases: 'x', caseType: '일반 생활지도', charCount: '약 10자', guidanceStep: '주의', guardianNotice: '해당 없음', followUp: '관찰' },
+    teacherUnderstanding: ['일반론'],
+    safeGuidance: ['잘 지도한다'],
+    teacherMemo: ['메모'],
+  };
+
+  it('system prompt keeps the base rules and adds a critique framing', () => {
+    const sys = buildCritiqueSystemPrompt();
+    expect(sys).toContain('이어붙이지'); // 기본 규칙 유지
+    expect(sys).toContain('초안');        // 비평 프레이밍
+  });
+
+  it('user prompt embeds the draft and the rubric', () => {
+    const u = buildCritiquePrompt({ caseTypeId: 1, slots: { behavior: 'x' }, isSpecialEd: false, liveLaw: null, draft });
+    expect(u).toContain('수업 중 떠들었음 그냥요'); // 초안 본문 포함
+    expect(u).toContain('일반론');                 // 초안 항목 포함
+    expect(u).toContain('구체화');                 // 루브릭 키워드
   });
 });

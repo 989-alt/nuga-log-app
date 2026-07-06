@@ -1,5 +1,5 @@
 import { getCaseType } from '@/lib/caseTypes';
-import type { CaseTypeId } from '@/lib/types';
+import type { CaseTypeId, ResultMeta } from '@/lib/types';
 
 // 변환 수준을 보여 주는 예시 출력. 실제 스키마와 동일하게 JSON.stringify 해서
 // 프롬프트에 넣는다(수작업 escape 회피 + 유효 JSON 보장).
@@ -114,4 +114,49 @@ export function buildUserPrompt(args: {
   lines.push('');
   lines.push('위 사실만으로 누가기록을 작성한다. 입력에 없는 사실·발언·수치를 지어내지 않는다. JSON 객체 하나만 출력한다.');
   return lines.join('\n');
+}
+
+export function buildCritiqueSystemPrompt(): string {
+  return [
+    buildSystemPrompt(),
+    '',
+    '추가 지침 — 지금은 이미 1차 생성된 초안을 비평·재작성하는 작업이다.',
+    '초안의 사실관계와 직접인용은 보존하되, 위 규칙 위반(입력 어휘 답습, 평가어, 법률 단정, 일반론)을 교정해 더 구체적이고 안전한 최종본을 만든다.',
+    '반드시 위와 동일한 JSON 객체 하나만 출력한다.',
+  ].join('\n');
+}
+
+export function buildCritiquePrompt(args: {
+  caseTypeId: CaseTypeId;
+  slots: Record<string, string>;
+  isSpecialEd: boolean;
+  liveLaw: string | null;
+  draft: {
+    body: string;
+    meta: ResultMeta;
+    teacherUnderstanding: string[];
+    safeGuidance: string[];
+    teacherMemo: string[];
+  };
+}): string {
+  const base = buildUserPrompt({
+    caseTypeId: args.caseTypeId,
+    slots: args.slots,
+    isSpecialEd: args.isSpecialEd,
+    liveLaw: args.liveLaw,
+  });
+  return [
+    base,
+    '',
+    '[1단계 초안 — 아래를 개선하라]',
+    JSON.stringify(args.draft),
+    '',
+    '[비평 루브릭 — 각 항목을 점검해 고쳐라]',
+    '- 입력 어휘를 그대로 옮긴 부분을 관찰 서술로 다시 쓴다.',
+    '- 평가어를 구체 관찰사실로 바꾼다.',
+    '- 법률 단정을 헤지 표현으로 바꾼다.',
+    '- teacherUnderstanding·safeGuidance·teacherMemo가 일반론이면 본 사안에 맞춰 구체화한다.',
+    '- 권장 분량을 지킨다.',
+    '개선한 동일 스키마 JSON 하나만 출력한다.',
+  ].join('\n');
 }
