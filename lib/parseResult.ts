@@ -64,7 +64,8 @@ export async function runGenerate(
   const raw1 = await callLlm({ system, user, ai: req.ai, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey });
   let parsed = parseModelJson(raw1);
 
-  let hits = scanProhibited(parsed.body);
+  const scanTarget = () => parsed.body + '\n' + parsed.meta.bases;
+  let hits = scanProhibited(scanTarget());
   if (hits.length > 0) {
     // Regenerate once with a stricter instruction naming the offending phrases.
     const stricter = user + '\n\n주의: 이전 초안에 다음 금지 표현이 있었다: ' +
@@ -72,14 +73,16 @@ export async function runGenerate(
       '. 이 표현들을 제거하고 묘사 표현으로 바꿔 다시 작성하라.';
     const raw2 = await callLlm({ system, user: stricter, ai: req.ai, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey });
     parsed = parseModelJson(raw2);
-    hits = scanProhibited(parsed.body);
+    hits = scanProhibited(scanTarget());
   }
 
   if (hits.length > 0) {
-    const conv = applyConversions(parsed.body);
-    parsed.body = conv.text;
+    const convBody = applyConversions(parsed.body);
+    const convBases = applyConversions(parsed.meta.bases);
+    parsed.body = convBody.text;
+    parsed.meta.bases = convBases.text;
     warnings.push('일부 위험 표현이 감지되어 자동 조정했습니다. 반드시 검토 후 사용하세요.');
-    warnings.push(...conv.notes);
+    warnings.push(...convBody.notes, ...convBases.notes);
   }
 
   return { ...parsed, warnings };

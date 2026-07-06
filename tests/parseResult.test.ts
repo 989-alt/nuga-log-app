@@ -60,4 +60,12 @@ describe('runGenerate', () => {
     expect(out.body).not.toContain('모욕죄 성립');
     expect(out.warnings.length).toBeGreaterThan(0);
   });
+
+  it('applies conversions and adds a warning when meta.bases has a prohibited phrase', async () => {
+    const dirty = { ...cleanResult, meta: { ...cleanResult.meta, bases: '보호자 발언은 모욕죄 성립임.' } };
+    // Model returns the dirty meta.bases twice (initial + regenerate); conversion still cleans it and warns.
+    const out = await runGenerate(baseReq, { fetchImpl: geminiJson(dirty), geminiKey: 'K' });
+    expect(out.meta.bases).not.toContain('모욕죄 성립');
+    expect(out.warnings.length).toBeGreaterThan(0);
+  });
 });
