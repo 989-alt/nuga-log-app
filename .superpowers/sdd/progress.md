@@ -1,3 +1,0 @@
-NLA Task 2: complete (commit 411bceb, review approved). vitest.config @ alias fixed with fileURLToPath (anticipated). Minor: legal-content.json has no runtime schema validation (type-assertion only) — acceptable for static port.
-NLA Task 3: complete (commits 7d8cf77 impl + 87fd703 fix, review approved after fix). Two Important masking bugs (distinct-label drift, particle over-match) fixed & re-verified 15/15. Minor deferred: name literally "다른" could corrupt label (unrealistic).
-NLA Task 4: complete (commit ba9d5c2, review approved). Minor for final review: applyConversions runs whitespace-normalization unconditionally (not gated on notes.length>0) — could touch clean text; inherited from plan.
