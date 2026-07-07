@@ -7,6 +7,7 @@ out
 *.log
 .DS_Store
 .superpowers
+tsconfig.tsbuildinfo
 
 .vercel
 .env*

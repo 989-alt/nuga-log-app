@@ -223,10 +223,17 @@ export async function callLlmLadder(args: {
   throw lastErr;
 }
 
-/** 선호 모델 + 제공자별 저비용 폴백 꼬리. 중복 제거, 순서 유지. */
+/**
+ * 사용할 모델 사다리를 만든다.
+ * - '내 키' 모드에서 모델을 **명시적으로** 고른 경우: 그 모델만 사용한다(조용한 강등 금지).
+ *   한도(429/503)에 걸리면 사다리를 던져 올려, 클라이언트가 같은 모델로 대기·재시도하게 한다.
+ *   법적 증빙 문서이므로 사용자가 고른 품질을 임의로 낮추지 않는다.
+ * - 무료 모드, 또는 모델을 비워 기본값에 맡긴 경우: 저비용 폴백 꼬리를 붙인 안전망 사다리를 쓴다.
+ */
 export function buildLadder(ai: AiConfig): string[] {
   const provider: AiProvider = ai.mode === 'free' ? 'gemini' : (ai.provider ?? 'gemini');
-  const preferred = (ai.model && ai.model.trim() !== '') ? ai.model.trim() : DEFAULT_MODELS[provider];
-  const ladder = [preferred, ...FALLBACK_TAILS[provider]];
+  const explicit = ai.mode === 'byok' && !!(ai.model && ai.model.trim() !== '');
+  if (explicit) return [ai.model!.trim()];
+  const ladder = [DEFAULT_MODELS[provider], ...FALLBACK_TAILS[provider]];
   return ladder.filter((m, i) => ladder.indexOf(m) === i);
 }

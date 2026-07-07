@@ -110,28 +110,45 @@ describe('callLlm', () => {
 });
 
 describe('buildLadder', () => {
-  it('free mode → [flash, flash-lite]', () => {
+  it('free mode keeps the safety-net ladder → [flash, flash-lite]', () => {
     expect(buildLadder({ mode: 'free' })).toEqual(['gemini-2.5-flash', 'gemini-2.5-flash-lite']);
   });
 
-  it('byok gemini with pro preferred → [pro, flash, flash-lite], deduped', () => {
+  // 사용자가 '내 키' 모드에서 모델을 명시적으로 고르면 조용한 강등 없이 그 모델만 사용한다.
+  it('byok with an explicit gemini model honors it, no downgrade → [pro] only', () => {
     expect(buildLadder({ mode: 'byok', provider: 'gemini', apiKey: 'K', model: 'gemini-2.5-pro' }))
-      .toEqual(['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']);
+      .toEqual(['gemini-2.5-pro']);
   });
 
-  it('byok gemini preferring flash does not duplicate flash', () => {
+  it('byok with an explicit flash does not append flash-lite → [flash] only', () => {
     expect(buildLadder({ mode: 'byok', provider: 'gemini', apiKey: 'K', model: 'gemini-2.5-flash' }))
+      .toEqual(['gemini-2.5-flash']);
+  });
+
+  it('byok claude with an explicit model honors it → [opus] only', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'claude', apiKey: 'K', model: 'claude-opus-4-8' }))
+      .toEqual(['claude-opus-4-8']);
+  });
+
+  it('byok openai with an explicit model honors it → [gpt-4o] only', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'openai', apiKey: 'K', model: 'gpt-4o' }))
+      .toEqual(['gpt-4o']);
+  });
+
+  // 모델을 비워 기본값에 맡긴 경우(명시 선택 아님)는 안전망 사다리를 유지한다.
+  it('byok gemini with no explicit model keeps the ladder', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'gemini', apiKey: 'K', model: '' }))
       .toEqual(['gemini-2.5-flash', 'gemini-2.5-flash-lite']);
   });
 
-  it('claude falls back to haiku', () => {
-    expect(buildLadder({ mode: 'byok', provider: 'claude', apiKey: 'K', model: 'claude-opus-4-8' }))
-      .toEqual(['claude-opus-4-8', 'claude-haiku-4-5-20251001']);
+  it('byok gemini with a whitespace-only model is treated as unset → ladder', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'gemini', apiKey: 'K', model: '   ' }))
+      .toEqual(['gemini-2.5-flash', 'gemini-2.5-flash-lite']);
   });
 
-  it('openai falls back to gpt-4o-mini', () => {
-    expect(buildLadder({ mode: 'byok', provider: 'openai', apiKey: 'K', model: 'gpt-4o' }))
-      .toEqual(['gpt-4o', 'gpt-4o-mini']);
+  it('byok openai with no explicit model keeps the ladder', () => {
+    expect(buildLadder({ mode: 'byok', provider: 'openai', apiKey: 'K', model: '' }))
+      .toEqual(['gpt-4o-mini']);
   });
 });
 
@@ -173,5 +190,22 @@ describe('callLlmLadder', () => {
     } catch (e) { err = e; }
     expect(err).toBeInstanceOf(LlmError);
     expect(err.status).toBe(429);
+  });
+
+  // 핵심 회귀: 명시 선택 모델은 429여도 flash-lite로 강등하지 않고 위로 던져
+  // 클라이언트가 같은 모델로 대기·재시도하게 한다.
+  it('an explicit-model ladder does NOT degrade to flash-lite on 429', async () => {
+    const ai = { mode: 'byok', provider: 'gemini', apiKey: 'K', model: 'gemini-2.5-flash' } as const;
+    const models = buildLadder(ai);
+    expect(models).toEqual(['gemini-2.5-flash']);
+    const spy = vi.fn(async () => new Response('rate', { status: 429 })) as unknown as typeof fetch;
+    let err: any;
+    try {
+      await callLlmLadder({ system: 's', user: 'u', ai, models, fetchImpl: spy, retryDelayMs: 0 });
+    } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(LlmError);
+    expect(err.status).toBe(429);
+    const urls = (spy as any).mock.calls.map((c: any[]) => String(c[0]));
+    expect(urls.every((u: string) => u.includes('gemini-2.5-flash') && !u.includes('flash-lite'))).toBe(true);
   });
 });

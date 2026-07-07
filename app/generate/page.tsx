@@ -9,6 +9,7 @@ import ApiKeyPanel from '@/components/ApiKeyPanel';
 import SlotForm from '@/components/SlotForm';
 import ResultBlocks from '@/components/ResultBlocks';
 import { addHistory, makeId } from '@/lib/history';
+import { estimateSeconds, formatEstimate } from '@/lib/estimate';
 
 type LastSubmit = { slots: Record<string, string>; isSpecialEd: boolean };
 const MAX_AUTO_RETRIES = 4;
@@ -30,6 +31,13 @@ function GenerateInner() {
   const retryCount = useRef(0);
   const outputRef = useRef<HTMLDivElement>(null);
   const hadOutput = useRef(false);
+
+  // 실제 전송에 쓰일 설정(추론 강도 기본값 해석 포함) — 예상 시간 표시와 요청에 함께 사용한다.
+  const effectiveAi: AiConfig = { ...ai, thinkingLevel: ai.thinkingLevel ?? (type.highRisk ? 'dynamic' : 'off') };
+  const estLabel = formatEstimate(estimateSeconds(effectiveAi, refineMode));
+  // '내 키' 모드에서 모델을 명시적으로 골랐는지 — 이 경우 한도에 걸려도 강등 없이 같은 모델을 기다린다.
+  const honorsModel = ai.mode === 'byok' && !!(ai.model && ai.model.trim() !== '');
+  const chosenModel = honorsModel ? ai.model!.trim() : null;
 
   // 출력(결과/오류/대기)이 처음 나타날 때만 스크롤 — 카운트다운 매 초 스크롤 방지.
   useEffect(() => {
@@ -62,24 +70,25 @@ function GenerateInner() {
     setResult(null);
     setCooldown(null);
     try {
-      const aiForRequest: AiConfig = {
-        ...ai,
-        thinkingLevel: ai.thinkingLevel ?? (type.highRisk ? 'dynamic' : 'off'),
-      };
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ caseTypeId, slots, isSpecialEd, ai: aiForRequest, refineMode }),
+        body: JSON.stringify({ caseTypeId, slots, isSpecialEd, ai: effectiveAi, refineMode }),
       });
       const data = await res.json();
       if (!res.ok) {
-        // 429 + 대기 시간을 알고 있고, 자동 재시도 횟수가 남았으면 → 기다렸다 다시.
-        if (res.status === 429 && data.retryAfterSec && retryCount.current < MAX_AUTO_RETRIES) {
+        // 429면 자동 재시도 횟수가 남는 한 → 기다렸다 같은 모델로 다시. 강등하지 않는다.
+        // (제공자가 대기 시간을 안 알려주면 30초 기본값으로 기다린다.)
+        if (res.status === 429 && retryCount.current < MAX_AUTO_RETRIES) {
           retryCount.current += 1;
           setAttempt(retryCount.current);
           setCooldown(Math.min(Math.max(Number(data.retryAfterSec) || 30, 1), 90));
-        } else if (res.status === 429 && retryCount.current >= MAX_AUTO_RETRIES) {
-          setError('요청 한도가 계속 풀리지 않았습니다. 잠시 뒤 다시 시도하거나, "생성 엔진"에서 gemini-2.5-flash 등 여유 있는 모델로 바꿔 주세요. (pro 계열은 무료 한도가 매우 낮습니다.)');
+        } else if (res.status === 429) {
+          setError(
+            honorsModel
+              ? `선택하신 ${chosenModel} 모델의 요청 한도가 계속 풀리지 않았습니다. 잠시 뒤 다시 시도하거나, 결제가 설정된 키를 쓰면 원활합니다. (강등 없이 선택한 모델을 유지했습니다.)`
+              : '요청 한도가 계속 풀리지 않았습니다. 잠시 뒤 다시 시도하거나, "생성 엔진"에서 gemini-2.5-flash 등 여유 있는 모델로 바꿔 주세요. (pro 계열은 무료 한도가 매우 낮습니다.)'
+          );
         } else {
           setError(data.error ?? '생성에 실패했습니다.');
         }
@@ -115,19 +124,37 @@ function GenerateInner() {
         <hr className="hairline" style={{ margin: '28px 0' }} />
 
         <ApiKeyPanel onChange={setAi} defaultThinking={type.highRisk ? 'dynamic' : 'off'} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 18px', fontSize: 14, cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px', fontSize: 14, cursor: 'pointer' }}>
           <input type="checkbox" style={{ width: 'auto' }} checked={refineMode} onChange={(e) => setRefineMode(e.target.checked)} />
           <span>정밀 모드 <span className="muted" style={{ fontWeight: 400 }}>(2단계 생성 · 요청 2배 · 더 느림)</span></span>
         </label>
+        <p className="help" style={{ margin: '0 0 18px', lineHeight: 1.55 }}>
+          예상 소요 시간 <strong style={{ fontWeight: 600 }}>{estLabel}</strong>
+          {refineMode && ' · 정밀 2단계'}
+          {honorsModel
+            ? ` · 선택하신 ${chosenModel} 모델을 그대로 사용합니다. 한도에 걸리면 강등 없이 잠시 기다렸다 다시 시도합니다.`
+            : ' · 대기 시간은 제외한 순수 생성 시간입니다.'}
+        </p>
         <SlotForm caseTypeId={caseTypeId} onSubmit={(s, e) => handleSubmit(s, e)} submitting={submitting || cooldown != null} />
 
         <div ref={outputRef}>
+          {submitting && cooldown == null && (
+            <div className="callout callout-info" style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span className="spinner" aria-hidden style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600 }}>누가기록을 생성하고 있습니다 · 예상 {estLabel}</div>
+                <div style={{ fontSize: 13.5, marginTop: 2 }}>
+                  {honorsModel ? `${chosenModel} 모델로 생성 중입니다. ` : ''}잠시만 기다려 주세요.
+                </div>
+              </div>
+            </div>
+          )}
           {cooldown != null && (
             <div className="callout callout-warning" style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 14 }}>
               <span className="spinner" style={{ borderColor: 'rgba(138,97,0,.3)', borderTopColor: 'var(--warning)', flexShrink: 0 }} aria-hidden />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600 }}>요청 한도에 걸려 대기 중입니다 <span style={{ fontWeight: 400 }}>(재시도 {attempt}/{MAX_AUTO_RETRIES})</span></div>
-                <div style={{ fontSize: 13.5, marginTop: 2 }}>약 <strong>{cooldown}초</strong> 후 자동으로 다시 시도합니다. 요청은 한 번에 하나씩만 보냅니다.</div>
+                <div style={{ fontSize: 13.5, marginTop: 2 }}>약 <strong>{cooldown}초</strong> 후 {honorsModel ? `${chosenModel} 모델 그대로 ` : ''}자동으로 다시 시도합니다{honorsModel ? ' (강등 없음)' : ''}. 요청은 한 번에 하나씩만 보냅니다.</div>
               </div>
               <button type="button" className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0 }} onClick={tryNow}>지금 시도</button>
             </div>
