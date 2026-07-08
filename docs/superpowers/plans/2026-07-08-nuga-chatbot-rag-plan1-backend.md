@@ -1071,10 +1071,13 @@ function parseVerify(raw: string): { pass: boolean; violations: string[]; missin
 
 - [ ] **Step 6: 기존 테스트 갱신** — `tests/parseResult.test.ts`·`tests/generate.integration.test.ts`·`tests/route.passthrough.test.ts`에서 `isSpecialEd: false`를 `specialEd: { isSpecialEd:false, disabilities:[] }`로, `verifyLaws`/`liveLaw` 기대를 새 파이프라인(fetch 목에 MCP 분기 추가)으로 바꾼다. 각 요청 픽스처에 `specialEd`를 넣는다.
 
-- [ ] **Step 7: 전체 테스트 통과 확인**
+- [ ] **Step 7: 전체 테스트 통과 확인 (게이트)**
 
-Run: `npx vitest run && npx tsc --noEmit`
-Expected: 전체 PASS, 타입 에러 0.
+Run: `npx vitest run`
+Expected: **전체 Vitest PASS** (모든 테스트 파일). 이것이 Plan 1의 합격 게이트다.
+
+Run: `npx tsc --noEmit`
+Expected: 백엔드(`lib/**`, `app/api/**`)와 모든 `tests/**`에서 타입 에러 0. **잔여 타입 에러는 폼 UI 파일(`app/page.tsx`, `components/SlotForm*.tsx`, `app/generate/page.tsx` 등)에만 국한되어야 한다** — 이들은 옛 폼 기반 `GenerateRequest`(구 `isSpecialEd`/`refineMode`)를 소비하며 Plan 2에서 전면 교체된다. 이 UI 파일들은 이 태스크에서 수정하지 말고(스코프 밖), `tsc` 출력에서 에러가 나는 파일 목록을 리포트에 적어 그것들이 위 UI 파일에만 한정됨을 확인한다. 백엔드/테스트 tsc 에러가 하나라도 있으면 실패로 보고 고친다.
 
 - [ ] **Step 8: 커밋**
 

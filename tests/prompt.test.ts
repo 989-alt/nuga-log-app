@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/prompt';
-import { buildCritiqueSystemPrompt, buildCritiquePrompt } from '@/lib/prompt';
+import type { RetrievedBasis } from '@/lib/lawRetrieval';
+
+const emptyBasis: RetrievedBasis = { grounding: '', precedents: [] };
 
 describe('buildSystemPrompt', () => {
   it('includes the core rules: 평어 종결, 단정 금지, JSON-only', () => {
@@ -18,8 +20,8 @@ describe('buildUserPrompt', () => {
     const p = buildUserPrompt({
       caseTypeId: 1,
       slots: { datetime: '2026.5.13.(수) 3교시', behavior: '필통을 떨어뜨림' },
-      isSpecialEd: false,
-      liveLaw: null,
+      specialEd: { isSpecialEd: false, disabilities: [] },
+      basis: emptyBasis,
     });
     expect(p).toContain('일반 생활지도');
     expect(p).toContain('2026.5.13.(수) 3교시');
@@ -27,38 +29,20 @@ describe('buildUserPrompt', () => {
     expect(p).toContain('초·중등교육법 제20조의2');
   });
 
-  it('adds the special-ed clause and live-law block when provided', () => {
+  it('adds the special-ed clause, grounding, and precedent block when provided', () => {
+    const basis: RetrievedBasis = {
+      grounding: 'GROUNDING_MARKER 현행 법령 근거 요약',
+      precedents: [{ caseNo: '2021도13926', gist: '교사의 객관적으로 타당한 지도' }],
+    };
     const p = buildUserPrompt({
       caseTypeId: 3,
       slots: { datetime: 'x' },
-      isSpecialEd: true,
-      liveLaw: '학교폭력예방 및 대책에 관한 법률 [현행] 시행일 20260602',
+      specialEd: { isSpecialEd: true, disabilities: [] },
+      basis,
     });
     expect(p).toContain('제15조');
-    expect(p).toContain('실시간 검증');
-    expect(p).toContain('20260602');
-  });
-});
-
-describe('critique prompt', () => {
-  const draft = {
-    body: '수업 중 떠들었음 그냥요',
-    meta: { bases: 'x', caseType: '일반 생활지도', charCount: '약 10자', guidanceStep: '주의', guardianNotice: '해당 없음', followUp: '관찰' },
-    teacherUnderstanding: ['일반론'],
-    safeGuidance: ['잘 지도한다'],
-    teacherMemo: ['메모'],
-  };
-
-  it('system prompt keeps the base rules and adds a critique framing', () => {
-    const sys = buildCritiqueSystemPrompt();
-    expect(sys).toContain('이어붙이지'); // 기본 규칙 유지
-    expect(sys).toContain('초안');        // 비평 프레이밍
-  });
-
-  it('user prompt embeds the draft and the rubric', () => {
-    const u = buildCritiquePrompt({ caseTypeId: 1, slots: { behavior: 'x' }, isSpecialEd: false, liveLaw: null, draft });
-    expect(u).toContain('수업 중 떠들었음 그냥요'); // 초안 본문 포함
-    expect(u).toContain('일반론');                 // 초안 항목 포함
-    expect(u).toContain('구체화');                 // 루브릭 키워드
+    expect(p).toContain('GROUNDING_MARKER');
+    expect(p).toContain('검색된 판례');
+    expect(p).toContain('2021도13926');
   });
 });

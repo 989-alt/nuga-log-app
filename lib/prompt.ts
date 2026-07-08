@@ -1,5 +1,6 @@
 import { getCaseType } from '@/lib/caseTypes';
-import type { CaseTypeId, ResultMeta } from '@/lib/types';
+import type { CaseTypeId, SpecialEdInfo } from '@/lib/types';
+import type { RetrievedBasis } from '@/lib/lawRetrieval';
 
 // 변환 수준을 보여 주는 예시 출력. 실제 스키마와 동일하게 JSON.stringify 해서
 // 프롬프트에 넣는다(수작업 escape 회피 + 유효 JSON 보장).
@@ -59,6 +60,7 @@ export function buildSystemPrompt(): string {
     '- teacherUnderstanding: 본 사안과 직접 연결된 조항만 각 1줄로 "무엇을 규율하는 법인지 + 이 사안에서 왜 인용했는지"를 풀이한다. 부수 법률 나열 금지.',
     '- safeGuidance: 같은 유형을 다음에 더 안전하게 지도하는 구체적·행동 가능한 실천 지침 2~4가지. "잘 지도하세요" 같은 일반론 금지.',
     '- teacherMemo: 분쟁 대비 자료(목격자, 통화·상담 기록, 사진·메시지 캡처, 별도 진술서 등)를 구체적으로 적는다.',
+    '- legalProtection: 본 사안 사실을 방어 4요건(구체 관찰사실·적용 지도단계·비례성·후속)과 제공된 판례에 연결해 교사용으로 정리한다. caseRefs에는 아래 사용자 프롬프트에 제공된 사건번호만 넣고, 제공되지 않은 판례는 만들지 않는다. 이 블록과 판례는 본문(body)에 넣지 않는다.',
     '',
     '아래는 변환의 형식과 깊이를 보여 주는 예시다. 이 예시의 내용·문장을 절대 복사하지 말고, 변환 방식만 참고한다.',
     '[예시 원자료] 일시 2026.6.2.(화) 2교시 / 장소 교실 / 관찰된 행동: 애가 수업 중에 계속 떠들고 산만했음, 짝한테 시비도 걸었음 / 교사 발화: 조용히 하라고 여러 번 말함 / 학생 발화: 몰라요 그냥요 / 지도 단계: 주의 / 학생 반응: 잠깐 조용했다 또 그럼 / 후속: 지켜보고 상담',
@@ -78,7 +80,8 @@ export function buildSystemPrompt(): string {
     '  },',
     '  "teacherUnderstanding": ["교사 이해용 항목 1", "항목 2"],',
     '  "safeGuidance": ["향후 안전 지도 항목 1", "항목 2"],',
-    '  "teacherMemo": ["교사 보관 메모 항목 1"]',
+    '  "teacherMemo": ["교사 보관 메모 항목 1"],',
+    '  "legalProtection": [{ "element": "방어 요건/논점", "support": "사안 사실과 근거의 연결", "caseRefs": ["실제 제공된 사건번호만"] }]',
     '}',
   ].join('\n');
 }
@@ -86,8 +89,8 @@ export function buildSystemPrompt(): string {
 export function buildUserPrompt(args: {
   caseTypeId: CaseTypeId;
   slots: Record<string, string>;
-  isSpecialEd: boolean;
-  liveLaw: string | null;
+  specialEd: SpecialEdInfo;
+  basis: RetrievedBasis;
 }): string {
   const type = getCaseType(args.caseTypeId);
   const lines: string[] = [];
@@ -97,12 +100,14 @@ export function buildUserPrompt(args: {
   lines.push('정적 근거 조문(참고):');
   for (const b of type.bases) lines.push(`- ${b}`);
   lines.push('');
-  if (args.liveLaw) {
-    lines.push('실시간 검증된 현행 법령(법제처 대조 결과, [근거]에 정확한 법령명·시행일을 반영):');
-    lines.push(args.liveLaw);
+  lines.push(args.basis.grounding);
+  lines.push('');
+  if (args.basis.precedents.length > 0) {
+    lines.push('검색된 판례(caseRefs에 이 사건번호만 사용, 없는 판례 창작 금지):');
+    for (const p of args.basis.precedents) lines.push(`- ${p.caseNo}: ${p.gist}`);
     lines.push('');
   }
-  if (args.isSpecialEd) {
+  if (args.specialEd.isSpecialEd) {
     lines.push('이 사안의 대상 학생은 특수교육대상자이며 문제행동이 반복·심각하다. [근거]에 "교원의 학생생활지도에 관한 고시 제15조③(특수교육대상자의 심각한 문제행동은 개별화교육계획에 행동중재지원 사항 포함)"을 함께 인용하고, [향후 안전한 지도 방법]에 특수교육 지원팀·행동중재전문가 연계와 개별화교육계획(IEP) 갱신 요청을 포함한다.');
     lines.push('');
   }
@@ -116,53 +121,26 @@ export function buildUserPrompt(args: {
   return lines.join('\n');
 }
 
-export function buildCritiqueSystemPrompt(): string {
-  return [
-    buildSystemPrompt(),
-    '',
-    '추가 지침 — 지금은 이미 1차 생성된 초안을 비평·재작성하는 작업이다.',
-    '초안의 사실관계와 직접인용은 보존하되, 위 규칙 위반(입력 어휘 답습, 평가어, 법률 단정, 일반론)을 교정해 더 구체적이고 안전한 최종본을 만든다.',
-    '반드시 위와 동일한 JSON 객체 하나만 출력한다.',
+export function buildVerifyPrompt(args: { body: string; facts: string; basis: RetrievedBasis }): { system: string; user: string } {
+  const system = [
+    '당신은 이미 작성된 NEIS 누가기록 본문을 법적으로 감사·보강하는 검증 도우미다.',
+    '두 축으로 감사한다.',
+    '1) 금지 규칙: 법률 단정(~에 해당함, ~죄 성립, 공연성 충족 등), 평가어(산만함·버릇없음 등), 모욕·비하·낙인, 민감정보(장애·병력·종교 등), 타 학생·학부모 실명이 있으면 위반이다.',
+    '2) 방어력(대법원 2021도13926의 객관적으로 타당한 지도 기준): 본문에 ①구체적 관찰사실 ②적용한 지도 단계 명시 ③비례성(단계적·최소개입) ④후속 조치가 드러나야 한다. 빠진 요건은 missingElements에 적는다.',
+    '보강은 제공된 사실 범위 안에서만 한다. 없는 사실·발언·수치를 창작하지 않는다. 본문에는 판례 사건번호나 법률 단정을 넣지 않는다(헤지 서술 유지).',
+    '아래 JSON 하나만 출력한다. 코드펜스 금지.',
+    '{"pass":true/false,"violations":["위반 항목"],"missingElements":["누락 요건"],"revisedBody":"보강한 본문(문제 없으면 원문 그대로)"}',
   ].join('\n');
-}
-
-export function buildCritiquePrompt(args: {
-  caseTypeId: CaseTypeId;
-  slots: Record<string, string>;
-  isSpecialEd: boolean;
-  liveLaw: string | null;
-  draft: {
-    body: string;
-    meta: ResultMeta;
-    teacherUnderstanding: string[];
-    safeGuidance: string[];
-    teacherMemo: string[];
-  };
-}): string {
-  const base = buildUserPrompt({
-    caseTypeId: args.caseTypeId,
-    slots: args.slots,
-    isSpecialEd: args.isSpecialEd,
-    liveLaw: args.liveLaw,
-  });
-  return [
-    base,
+  const user = [
+    '[감사 대상 본문]',
+    args.body,
     '',
-    '[1단계 초안 — 아래를 개선하라]',
-    JSON.stringify({
-      body: args.draft.body,
-      meta: args.draft.meta,
-      teacherUnderstanding: args.draft.teacherUnderstanding,
-      safeGuidance: args.draft.safeGuidance,
-      teacherMemo: args.draft.teacherMemo,
-    }),
+    '[확정된 사실(이 범위 밖 창작 금지)]',
+    args.facts,
     '',
-    '[비평 루브릭 — 각 항목을 점검해 고쳐라]',
-    '- 입력 어휘를 그대로 옮긴 부분을 관찰 서술로 다시 쓴다.',
-    '- 평가어를 구체 관찰사실로 바꾼다.',
-    '- 법률 단정을 헤지 표현으로 바꾼다.',
-    '- teacherUnderstanding·safeGuidance·teacherMemo가 일반론이면 본 사안에 맞춰 구체화한다.',
-    '- 권장 분량을 지킨다.',
-    '개선한 동일 스키마 JSON 하나만 출력한다.',
+    args.basis.grounding,
+    '',
+    '위 본문을 감사하고, 위반·누락을 고친 revisedBody를 포함해 JSON 하나만 출력하라.',
   ].join('\n');
+  return { system, user };
 }
