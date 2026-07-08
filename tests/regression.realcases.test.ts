@@ -124,4 +124,44 @@ describe('regression: 2026-07-08 real cases', () => {
     expect(refs).not.toContain('2099도0002');
     expect(refs).toContain('2021도13926');
   });
+
+  // 핵심 판례(2021도13926/2015도13488)는 MCP 검색 결과와 무관하게 항상 allowedCaseSet에 들어가므로,
+  // 위 두 테스트는 MCP 검색→허용목록 반영 경로가 완전히 고장나도 통과한다.
+  // 이 테스트는 MCP 검색 결과에서 실제로 추출된 "비핵심" 판례(2020도5555)가 허용목록을 거쳐
+  // 살아남는지 검증하여, retrieveBasis/extractCaseNumbers → allowedCaseSet 경로 자체를 증명한다.
+  it('MCP search result yields a non-core precedent that survives in legalProtection, while a hallucinated one is stripped', async () => {
+    const draftJson = JSON.stringify({
+      body: clothingBody,
+      meta: clothingMeta,
+      teacherUnderstanding: ['고시: 해당 단계 적용'],
+      safeGuidance: ['원인을 관찰한다', '대체행동을 안내한다'],
+      teacherMemo: ['통보 시각 기록'],
+      legalProtection: [
+        { element: '비례성', support: 'MCP 검색으로 확보한 판례와 환각 판례가 섞여 들어온 상황', caseRefs: ['2020도5555', '2099도0001'] },
+      ],
+    });
+    const verifyJson = JSON.stringify({ pass: true, violations: [], missingElements: [], revisedBody: clothingBody });
+
+    let i = 0;
+    const fetchImpl = (async (url: string) => {
+      if (typeof url === 'string' && url.includes('korean-law-mcp')) {
+        // 핵심 판례가 아닌 사건번호를 검색 결과로 반환한다. extractCaseNumbers가
+        // NNNN<한글>NNNNN 형태를 파싱해 basis.precedents에 담아야 살아남는다.
+        return new Response(
+          JSON.stringify({ result: { content: [{ text: '2020도5555 정당한 지도범위 판단' }] } }),
+          { status: 200 }
+        );
+      }
+      const body = i++ === 0 ? draftJson : verifyJson;
+      return new Response(JSON.stringify({ content: [{ type: 'text', text: body }] }), { status: 200 });
+    }) as any;
+
+    const res = await runGenerate(clothingCase, { fetchImpl, retryDelayMs: 0 });
+    const refs = res.legalProtection.flatMap((p) => p.caseRefs);
+
+    // MCP 검색 → retrieveBasis → allowedCaseSet 경로가 살아있어야 통과: 비핵심 판례가 남는다.
+    expect(refs).toContain('2020도5555');
+    // 환각 판례는 어떤 검색 결과에도 없으므로 제거되어야 한다.
+    expect(refs).not.toContain('2099도0001');
+  });
 });
