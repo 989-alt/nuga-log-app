@@ -33,12 +33,22 @@ export function parseModelJson(raw: string): Omit<GenerateResult, 'warnings'> {
     teacherUnderstanding: toStringArray(obj.teacherUnderstanding),
     safeGuidance: toStringArray(obj.safeGuidance),
     teacherMemo: toStringArray(obj.teacherMemo),
+    legalProtection: toLegalProtection(obj.legalProtection),
   };
 }
 
 function toStringArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return v.map((x) => String(x)).filter((s) => s.trim() !== '');
+}
+
+function toLegalProtection(v: unknown): import('@/lib/types').LegalProtection[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x: any) => ({
+    element: String(x?.element ?? ''),
+    support: String(x?.support ?? ''),
+    caseRefs: Array.isArray(x?.caseRefs) ? x.caseRefs.map((c: any) => String(c)).filter((s: string) => s.trim() !== '') : [],
+  })).filter((p) => p.element.trim() !== '' || p.support.trim() !== '');
 }
 
 export async function runGenerate(
