@@ -1,5 +1,5 @@
 import { getCaseType } from '@/lib/caseTypes';
-import type { CaseTypeId, ResultMeta } from '@/lib/types';
+import type { CaseTypeId, SpecialEdInfo } from '@/lib/types';
 import type { RetrievedBasis } from '@/lib/lawRetrieval';
 
 // 변환 수준을 보여 주는 예시 출력. 실제 스키마와 동일하게 JSON.stringify 해서
@@ -89,8 +89,8 @@ export function buildSystemPrompt(): string {
 export function buildUserPrompt(args: {
   caseTypeId: CaseTypeId;
   slots: Record<string, string>;
-  isSpecialEd: boolean;
-  liveLaw: string | null;
+  specialEd: SpecialEdInfo;
+  basis: RetrievedBasis;
 }): string {
   const type = getCaseType(args.caseTypeId);
   const lines: string[] = [];
@@ -100,12 +100,14 @@ export function buildUserPrompt(args: {
   lines.push('정적 근거 조문(참고):');
   for (const b of type.bases) lines.push(`- ${b}`);
   lines.push('');
-  if (args.liveLaw) {
-    lines.push('실시간 검증된 현행 법령(법제처 대조 결과, [근거]에 정확한 법령명·시행일을 반영):');
-    lines.push(args.liveLaw);
+  lines.push(args.basis.grounding);
+  lines.push('');
+  if (args.basis.precedents.length > 0) {
+    lines.push('검색된 판례(caseRefs에 이 사건번호만 사용, 없는 판례 창작 금지):');
+    for (const p of args.basis.precedents) lines.push(`- ${p.caseNo}: ${p.gist}`);
     lines.push('');
   }
-  if (args.isSpecialEd) {
+  if (args.specialEd.isSpecialEd) {
     lines.push('이 사안의 대상 학생은 특수교육대상자이며 문제행동이 반복·심각하다. [근거]에 "교원의 학생생활지도에 관한 고시 제15조③(특수교육대상자의 심각한 문제행동은 개별화교육계획에 행동중재지원 사항 포함)"을 함께 인용하고, [향후 안전한 지도 방법]에 특수교육 지원팀·행동중재전문가 연계와 개별화교육계획(IEP) 갱신 요청을 포함한다.');
     lines.push('');
   }
@@ -117,57 +119,6 @@ export function buildUserPrompt(args: {
   lines.push('');
   lines.push('위 사실만으로 누가기록을 작성한다. 입력에 없는 사실·발언·수치를 지어내지 않는다. JSON 객체 하나만 출력한다.');
   return lines.join('\n');
-}
-
-export function buildCritiqueSystemPrompt(): string {
-  return [
-    buildSystemPrompt(),
-    '',
-    '추가 지침 — 지금은 이미 1차 생성된 초안을 비평·재작성하는 작업이다.',
-    '초안의 사실관계와 직접인용은 보존하되, 위 규칙 위반(입력 어휘 답습, 평가어, 법률 단정, 일반론)을 교정해 더 구체적이고 안전한 최종본을 만든다.',
-    '반드시 위와 동일한 JSON 객체 하나만 출력한다.',
-  ].join('\n');
-}
-
-export function buildCritiquePrompt(args: {
-  caseTypeId: CaseTypeId;
-  slots: Record<string, string>;
-  isSpecialEd: boolean;
-  liveLaw: string | null;
-  draft: {
-    body: string;
-    meta: ResultMeta;
-    teacherUnderstanding: string[];
-    safeGuidance: string[];
-    teacherMemo: string[];
-  };
-}): string {
-  const base = buildUserPrompt({
-    caseTypeId: args.caseTypeId,
-    slots: args.slots,
-    isSpecialEd: args.isSpecialEd,
-    liveLaw: args.liveLaw,
-  });
-  return [
-    base,
-    '',
-    '[1단계 초안 — 아래를 개선하라]',
-    JSON.stringify({
-      body: args.draft.body,
-      meta: args.draft.meta,
-      teacherUnderstanding: args.draft.teacherUnderstanding,
-      safeGuidance: args.draft.safeGuidance,
-      teacherMemo: args.draft.teacherMemo,
-    }),
-    '',
-    '[비평 루브릭 — 각 항목을 점검해 고쳐라]',
-    '- 입력 어휘를 그대로 옮긴 부분을 관찰 서술로 다시 쓴다.',
-    '- 평가어를 구체 관찰사실로 바꾼다.',
-    '- 법률 단정을 헤지 표현으로 바꾼다.',
-    '- teacherUnderstanding·safeGuidance·teacherMemo가 일반론이면 본 사안에 맞춰 구체화한다.',
-    '- 권장 분량을 지킨다.',
-    '개선한 동일 스키마 JSON 하나만 출력한다.',
-  ].join('\n');
 }
 
 export function buildVerifyPrompt(args: { body: string; facts: string; basis: RetrievedBasis }): { system: string; user: string } {

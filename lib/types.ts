@@ -67,10 +67,8 @@ export interface LegalProtection {
 export interface GenerateRequest {
   caseTypeId: CaseTypeId;
   slots: Record<string, string>;
-  isSpecialEd?: boolean;
   specialEd: SpecialEdInfo;
   ai: AiConfig;
-  refineMode?: boolean;
 }
 
 export interface ResultMeta {

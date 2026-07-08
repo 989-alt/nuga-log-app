@@ -30,9 +30,8 @@ describe('POST /api/generate — passthrough of usedModel/refined/fallbackNote',
     const req = {
       caseTypeId: 1,
       slots: { datetime: 'a', place: 'b', behavior: 'c', teacherUtterance: 'd', studentUtterance: 'e', guidanceStep: 'f', studentReaction: 'g', followUp: 'h' },
-      isSpecialEd: false,
+      specialEd: { isSpecialEd: false, disabilities: [] },
       ai: { mode: 'free' },
-      refineMode: true,
     };
     const res = await POST(makeReq(req));
     const json = await res.json();

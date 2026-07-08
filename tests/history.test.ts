@@ -16,7 +16,7 @@ beforeEach(() => {
 
 const result: GenerateResult = {
   body: 'x', meta: { bases: 'b', caseType: 'c', charCount: '약 5자', guidanceStep: '주의', guardianNotice: '-', followUp: '-' },
-  teacherUnderstanding: [], safeGuidance: [], teacherMemo: [], warnings: [],
+  teacherUnderstanding: [], safeGuidance: [], teacherMemo: [], warnings: [], legalProtection: [],
 };
 
 describe('history', () => {
