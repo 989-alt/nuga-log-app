@@ -33,10 +33,42 @@ export interface AiConfig {
   thinkingLevel?: ThinkingLevel;
 }
 
+export interface SpecialEdInfo {
+  isSpecialEd: boolean;
+  disabilities: string[]; // DISABILITY_CATEGORIES의 key들
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatTurnRequest {
+  messages: ChatMessage[];
+  slots: Record<string, string>;
+  caseTypeId: CaseTypeId | null;
+  specialEd: SpecialEdInfo;
+  ai: AiConfig;
+}
+
+export interface ChatTurnResponse {
+  assistantMessage: string;
+  caseTypeId: CaseTypeId | null;
+  slotUpdates: Record<string, string>;
+  readyToGenerate: boolean;
+}
+
+export interface LegalProtection {
+  element: string; // 방어 요건/논점
+  support: string; // 사안 사실 ↔ 근거 연결 설명
+  caseRefs: string[]; // 실제 검색된 판례 사건번호
+}
+
 export interface GenerateRequest {
   caseTypeId: CaseTypeId;
   slots: Record<string, string>;
-  isSpecialEd: boolean;
+  isSpecialEd?: boolean;
+  specialEd: SpecialEdInfo;
   ai: AiConfig;
   refineMode?: boolean;
 }
@@ -57,6 +89,7 @@ export interface GenerateResult {
   safeGuidance: string[];
   teacherMemo: string[];
   warnings: string[];
+  legalProtection: LegalProtection[];
   usedModel?: string;
   fallbackNote?: string;
   refined?: boolean;
