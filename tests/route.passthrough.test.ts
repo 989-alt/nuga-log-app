@@ -11,7 +11,6 @@ vi.mock('@/lib/parseResult', () => ({
     warnings: [],
     usedModel: 'gemini-2.5-flash-lite',
     fallbackNote: '전환됨',
-    refined: true,
   })),
 }));
 
@@ -25,7 +24,7 @@ function makeReq(body: unknown): Request {
   });
 }
 
-describe('POST /api/generate — passthrough of usedModel/refined/fallbackNote', () => {
+describe('POST /api/generate — passthrough of usedModel/body/fallbackNote', () => {
   it('returns the fields from runGenerate unchanged', async () => {
     const req = {
       caseTypeId: 1,
@@ -37,7 +36,7 @@ describe('POST /api/generate — passthrough of usedModel/refined/fallbackNote',
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.usedModel).toBe('gemini-2.5-flash-lite');
-    expect(json.refined).toBe(true);
+    expect(json.body).toBe('x');
     expect(json.fallbackNote).toBe('전환됨');
   });
 });

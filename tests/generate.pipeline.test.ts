@@ -46,4 +46,38 @@ describe('runGenerate pipeline', () => {
     const refs = res.legalProtection.flatMap((p) => p.caseRefs);
     expect(refs).not.toContain('2099도0001');
   });
+
+  it('strips a hallucinated case number from the body itself, not just meta/caseRefs', async () => {
+    const draftBodyBad = JSON.stringify({
+      body: '2026년 7월 8일 수요일 4교시 교실에서 본인이 소리를 지름(2099도0001 판례 참조). 교사가 주의를 주었고 본인은 잠시 조용해짐. 이후 관찰 예정임.',
+      meta: { bases: '교원의 학생생활지도에 관한 고시', caseType: '일반 생활지도', charCount: '약 90자', guidanceStep: '주의', guardianNotice: '당일 통보', followUp: '재관찰' },
+      teacherUnderstanding: ['고시: 주의 단계 적용'],
+      safeGuidance: ['단계적으로 지도한다'],
+      teacherMemo: ['통보 시각 기록'],
+      legalProtection: [{ element: '구체 관찰사실', support: '소리 지름을 관찰로 기술', caseRefs: ['2021도13926'] }],
+    });
+    const verifiedNoRevision = JSON.stringify({ pass: true, violations: [], missingElements: [], revisedBody: '' });
+    const res = await runGenerate(req, { fetchImpl: sequencedLlm([draftBodyBad, verifiedNoRevision]), retryDelayMs: 0 });
+    expect(res.body).not.toContain('2099도0001');
+  });
+});
+
+describe('runGenerate — verify loop exhaustion', () => {
+  it('falls through after MAX_VERIFY_ROUNDS non-passing verifications, keeping the last revisedBody and warning', async () => {
+    const verifyFail1 = JSON.stringify({
+      pass: false,
+      violations: ['근거 부족'],
+      missingElements: ['통보 시각'],
+      revisedBody: '1차 보강본문',
+    });
+    const verifyFail2 = JSON.stringify({
+      pass: false,
+      violations: ['여전히 근거 부족'],
+      missingElements: ['통보 시각'],
+      revisedBody: '2차 보강본문',
+    });
+    const res = await runGenerate(req, { fetchImpl: sequencedLlm([draft, verifyFail1, verifyFail2]), retryDelayMs: 0 });
+    expect(res.body).toBe('2차 보강본문');
+    expect(res.warnings.some((w) => w.includes('법률 검증을 완전히 통과하지 못했습니다'))).toBe(true);
+  });
 });

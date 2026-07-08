@@ -109,6 +109,8 @@ export async function runGenerate(
   const basesClean = stripUnknownCaseNumbers(parsed.meta.bases, allowed);
   parsed.meta.bases = basesClean.text;
   parsed.legalProtection = cleanedRefs;
+  const bodyClean = stripUnknownCaseNumbers(parsed.body, allowed);
+  parsed.body = bodyClean.text;
 
   const fallbackNote = usedModel !== preferred ? `${preferred} 한도 초과로 ${usedModel}(으)로 자동 전환되었습니다.` : undefined;
 
