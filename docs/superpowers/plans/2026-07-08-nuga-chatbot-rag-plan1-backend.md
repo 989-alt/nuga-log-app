@@ -761,9 +761,10 @@ git commit -m "feat: /api/chat 인터뷰 턴 엔드포인트(무상태) 추가"
 
 **Interfaces:**
 - Consumes: `RetrievedBasis`/`Precedent`(lawRetrieval.ts), `LegalProtection`(types.ts)
-- Produces:
-  - `buildSystemPrompt`/`buildUserPrompt` 시그니처의 `isSpecialEd: boolean`을 `specialEd: SpecialEdInfo`로 변경하고, 출력 JSON 스키마에 `"legalProtection": [{"element","support","caseRefs"}]` 필드 추가. `buildUserPrompt`는 `basis: RetrievedBasis`를 받아 grounding과 검색 판례(사건번호·요지)를 주입하고 "caseRefs에는 아래 제공된 사건번호만 사용, 없는 판례 창작 금지"를 명시.
+- Produces (이 태스크는 **순수 추가형** — 기존 `buildUserPrompt` 시그니처는 건드리지 않는다. 시그니처 변경·critique 제거는 Task 8):
+  - `buildSystemPrompt`의 출력 JSON 스키마에 `"legalProtection": [{"element","support","caseRefs"}]` 필드와 관련 지시 한 줄 추가(모델이 추가로 출력할 수 있게; 기존 필드·시그니처 불변).
   - `buildVerifyPrompt(args: { body: string; facts: string; basis: RetrievedBasis }): { system: string; user: string }` — 본문을 금지규칙 + 2021도13926 4요건으로 감사. 출력 JSON: `{"pass":bool,"violations":[],"missingElements":[],"revisedBody":""}`
+  - `parseResult.ts`의 `parseModelJson`이 `legalProtection`을 파싱해 반환(추가 필드).
 
 - [ ] **Step 1: 실패 테스트** — `tests/prompt.verify.test.ts`
 
@@ -806,21 +807,7 @@ Expected: FAIL — buildVerifyPrompt is not a function
 '- legalProtection: 본 사안 사실을 방어 4요건(구체 관찰사실·적용 지도단계·비례성·후속)과 제공된 판례에 연결해 교사용으로 정리한다. caseRefs에는 아래 사용자 프롬프트에 제공된 사건번호만 넣고, 제공되지 않은 판례는 만들지 않는다. 이 블록과 판례는 본문(body)에 넣지 않는다.',
 ```
 
-`buildUserPrompt`의 시그니처를 `{ caseTypeId; slots; specialEd: SpecialEdInfo; basis: RetrievedBasis }`로 바꾸고, 기존 `liveLaw` 주입부를 `basis.grounding` + 검색 판례 목록 주입으로 교체:
-
-```ts
-lines.push(args.basis.grounding);
-lines.push('');
-if (args.basis.precedents.length > 0) {
-  lines.push('검색된 판례(caseRefs에 이 사건번호만 사용):');
-  for (const p of args.basis.precedents) lines.push(`- ${p.caseNo}: ${p.gist}`);
-  lines.push('');
-}
-```
-
-특수교육 주입부는 `args.specialEd.isSpecialEd`로 조건화(기존 문구 유지).
-
-**정밀 2단계(critique) 제거:** `buildCritiqueSystemPrompt`와 `buildCritiquePrompt`는 검증 루프(Task 8)로 대체되므로 삭제한다. `parseResult.ts`의 이들 import와 `refineMode` 분기(Task 8에서 재작성됨), 그리고 `tests/prompt.test.ts`에서 이 두 함수를 검증하던 케이스도 함께 제거한다. `GenerateRequest.refineMode`·`GenerateResult.refined`를 참조하던 곳은 Task 8에서 정리한다.
+**buildUserPrompt는 이 태스크에서 바꾸지 않는다.** 시그니처 변경(`isSpecialEd`/`liveLaw` → `specialEd`/`basis`)과 critique 함수 제거는 그 소비자(`runGenerate`)와 함께 Task 8에서 원자적으로 처리한다. 이렇게 해야 Task 7 단독으로 기존 `prompt.test.ts`가 깨지지 않는다.
 
 새 함수 추가:
 
@@ -877,7 +864,7 @@ function toLegalProtection(v: unknown): import('@/lib/types').LegalProtection[] 
 - [ ] **Step 4: 기존 prompt 테스트 회귀 확인 + 새 테스트 통과**
 
 Run: `npx vitest run tests/prompt.test.ts tests/prompt.verify.test.ts`
-Expected: 새 테스트 PASS. 기존 `prompt.test.ts`가 `buildUserPrompt`의 옛 시그니처(`isSpecialEd`, `liveLaw`)를 쓰면 이 태스크에서 함께 업데이트한다(같은 파일 대상이므로 태스크 범위). 업데이트 후 PASS.
+Expected: 둘 다 PASS. 이 태스크는 순수 추가형이므로 기존 `prompt.test.ts`는 수정 없이 그대로 통과해야 한다(버그 신호로 활용).
 
 - [ ] **Step 5: 커밋**
 
@@ -961,6 +948,24 @@ Run: `npx vitest run tests/generate.pipeline.test.ts`
 Expected: FAIL (runGenerate 아직 옛 구조)
 
 - [ ] **Step 3: `lib/types.ts`에서 `GenerateRequest.isSpecialEd?` 제거** — `specialEd: SpecialEdInfo`만 남긴다.
+
+- [ ] **Step 3b: `lib/prompt.ts`에서 `buildUserPrompt` 시그니처 변경 + critique 제거** — 이 변경과 소비자(runGenerate)를 한 태스크에서 원자적으로 처리한다.
+  - `buildUserPrompt`의 인자를 `{ caseTypeId: CaseTypeId; slots: Record<string,string>; specialEd: SpecialEdInfo; basis: RetrievedBasis }`로 바꾼다.
+  - 기존 `liveLaw` 주입부를 아래로 교체:
+
+    ```ts
+    lines.push(args.basis.grounding);
+    lines.push('');
+    if (args.basis.precedents.length > 0) {
+      lines.push('검색된 판례(caseRefs에 이 사건번호만 사용, 없는 판례 창작 금지):');
+      for (const p of args.basis.precedents) lines.push(`- ${p.caseNo}: ${p.gist}`);
+      lines.push('');
+    }
+    ```
+
+  - 특수교육 주입부의 `args.isSpecialEd` 조건을 `args.specialEd.isSpecialEd`로 바꾼다(기존 문구 유지).
+  - `buildCritiqueSystemPrompt`와 `buildCritiquePrompt`를 삭제한다(검증 루프가 대체). `import` 추가: `import type { SpecialEdInfo } from '@/lib/types';`, `import type { RetrievedBasis } from '@/lib/lawRetrieval';`(Task 7에서 이미 추가됐으면 중복 제거).
+  - `tests/prompt.test.ts`에서 `buildUserPrompt` 옛 시그니처(`isSpecialEd`/`liveLaw`)와 critique 함수를 검증하던 케이스를 새 시그니처(`specialEd`/`basis`)로 갱신하거나 제거한다.
 
 - [ ] **Step 4: `runGenerate` 재작성** — `lib/parseResult.ts`
 
