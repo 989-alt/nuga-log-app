@@ -6,7 +6,7 @@ export interface Precedent { caseNo: string; gist: string }
 export interface RetrievedBasis { grounding: string; precedents: Precedent[] }
 
 // 대법원/하급심 사건번호: 4자리 연도 + 사건부호(가~힣 1자) + 일련번호.
-const CASE_NO_RE = /\b(\d{4}[가-힣]\d{2,7})\b/g;
+export const CASE_NO_RE = /\b(\d{4}[가-힣]\d{2,7})\b/g;
 
 export function extractCaseNumbers(text: string): string[] {
   const out: string[] = [];
@@ -14,6 +14,16 @@ export function extractCaseNumbers(text: string): string[] {
     if (!out.includes(m[1])) out.push(m[1]);
   }
   return out;
+}
+
+// 사건번호 토큰 단위로 텍스트를 치환한다(경계 인식 단일 패스).
+// CASE_NO_RE는 module-level global regex라 .source로 새 RegExp를 만들어
+// lastIndex 상태가 호출 간에 공유되지 않도록 한다.
+export function replaceCaseNumbers(
+  text: string,
+  replacer: (caseNo: string) => string
+): string {
+  return text.replace(new RegExp(CASE_NO_RE.source, 'g'), (m) => replacer(m));
 }
 
 async function mcpCall(
