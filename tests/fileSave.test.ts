@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { supportsDirectorySave, saveViaPicker, downloadText } from '@/lib/fileSave';
 
