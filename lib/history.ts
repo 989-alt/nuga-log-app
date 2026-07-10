@@ -8,6 +8,8 @@ export interface HistoryItem {
   date: string;
   caseTypeId: CaseTypeId;
   result: GenerateResult;
+  // 이 기록이 다른 기록의 후속 기록으로 작성되었으면 원 기록의 id.
+  parentId?: string;
 }
 
 export function makeId(seed: string): string {

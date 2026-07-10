@@ -43,12 +43,22 @@ export interface ChatMessage {
   content: string;
 }
 
+// 기존 누가기록을 원 사건으로 참조해 후속 기록을 인터뷰·생성할 때 전달되는 컨텍스트.
+// 슬롯은 불필요하다(원 사실은 parentBody에 이미 있다).
+export interface FollowUpContext {
+  parentId: string;
+  parentDate: string;
+  caseTypeId: CaseTypeId;
+  parentBody: string;
+}
+
 export interface ChatTurnRequest {
   messages: ChatMessage[];
   slots: Record<string, string>;
   caseTypeId: CaseTypeId | null;
   specialEd: SpecialEdInfo;
   ai: AiConfig;
+  followUp?: FollowUpContext;
 }
 
 export interface ChatTurnResponse {
@@ -76,6 +86,7 @@ export interface GenerateRequest {
   slots: Record<string, string>;
   specialEd: SpecialEdInfo;
   ai: AiConfig;
+  followUp?: FollowUpContext;
 }
 
 export interface ResultMeta {
