@@ -7,6 +7,7 @@ import ApiKeyPanel from '@/components/ApiKeyPanel';
 import SpecialEdPanel from '@/components/SpecialEdPanel';
 import ChatThread from '@/components/ChatThread';
 import ResultBlocks from '@/components/ResultBlocks';
+import QuickReplies from '@/components/QuickReplies';
 import { addHistory, makeId } from '@/lib/history';
 
 /** 응답 본문을 JSON으로 해석하지 못했을 때(예: 504/502 게이트웨이 타임아웃이 HTML/빈
@@ -27,7 +28,8 @@ export default function Chat() {
   const [specialEd, setSpecialEd] = useState<SpecialEdInfo>({ isSpecialEd: false, disabilities: [] });
   const [chatState, setChatState] = useState<ChatState>(initialChatState);
   const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [chatBusy, setChatBusy] = useState(false);
+  const [genBusy, setGenBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryAfterSec, setRetryAfterSec] = useState<number | null>(null);
   const [result, setResult] = useState<GenerateResult | null>(null);
@@ -40,7 +42,7 @@ export default function Chat() {
     chatState.caseTypeId && getCaseType(chatState.caseTypeId).highRisk ? 'dynamic' : 'off';
 
   async function sendTurn(nextState: ChatState) {
-    setBusy(true);
+    setChatBusy(true);
     setError(null);
     setRetryAfterSec(null);
     try {
@@ -69,17 +71,23 @@ export default function Chat() {
     } catch {
       setError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
-      setBusy(false);
+      setChatBusy(false);
     }
+  }
+
+  /** 입력창을 거치지 않고 고정 문구를 사용자 턴으로 바로 전송한다(퀵리플라이용). */
+  function sendPreset(text: string) {
+    if (!text || chatBusy || genBusy) return;
+    const next = withUserMessage(chatState, text);
+    setChatState(next);
+    void sendTurn(next);
   }
 
   function handleSend() {
     const text = input.trim();
-    if (!text || busy) return;
-    const next = withUserMessage(chatState, text);
-    setChatState(next);
+    if (!text || chatBusy || genBusy) return;
     setInput('');
-    void sendTurn(next);
+    sendPreset(text);
   }
 
   function retryChat() {
@@ -88,8 +96,8 @@ export default function Chat() {
   }
 
   async function handleGenerate() {
-    if (busy || !chatState.caseTypeId) return;
-    setBusy(true);
+    if (genBusy || chatBusy || !chatState.caseTypeId) return;
+    setGenBusy(true);
     setGenError(null);
     try {
       const res = await fetch('/api/generate', {
@@ -113,6 +121,10 @@ export default function Chat() {
       }
       const generated = data as GenerateResult;
       setResult(generated);
+      setChatState((s) => ({
+        ...s,
+        messages: [...s.messages, { role: 'assistant', content: '초안을 만들었어요. 아래에서 확인하고 복사·저장해 주세요.' }],
+      }));
       addHistory({
         id: makeId(JSON.stringify(chatState.slots) + chatState.caseTypeId + Date.now()),
         date: new Date().toISOString().slice(0, 10),
@@ -122,7 +134,7 @@ export default function Chat() {
     } catch {
       setGenError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
-      setBusy(false);
+      setGenBusy(false);
     }
   }
 
@@ -132,13 +144,25 @@ export default function Chat() {
       <SpecialEdPanel value={specialEd} onChange={setSpecialEd} />
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <ChatThread messages={chatState.messages} />
+        <ChatThread messages={chatState.messages} typing={chatBusy ? 'chat' : genBusy ? 'generate' : null} />
+
+        {chatState.readyToGenerate && chatState.caseTypeId && !result && !chatBusy && !genBusy && (
+          <div style={{ padding: '0 20px 16px' }}>
+            <QuickReplies
+              options={[
+                { label: '네, 초안을 만들어 주세요', variant: 'primary', onSelect: handleGenerate },
+                { label: '아니오, 추가할 내용이 있어요', variant: 'ghost', onSelect: () => sendPreset('추가하거나 수정할 내용이 있어요.') },
+              ]}
+            />
+          </div>
+        )}
+
         <div style={{ borderTop: '1px solid var(--line)', padding: 16, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="있었던 일을 자유롭게 적어 주세요"
-            disabled={busy}
+            disabled={chatBusy || genBusy}
             style={{ flex: 1, minHeight: 52, wordBreak: 'keep-all' }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -147,8 +171,8 @@ export default function Chat() {
               }
             }}
           />
-          <button type="button" className="btn btn-primary" disabled={busy || !input.trim()} onClick={handleSend}>
-            {busy ? <span className="spinner" aria-hidden /> : '전송'}
+          <button type="button" className="btn btn-primary" disabled={chatBusy || genBusy || !input.trim()} onClick={handleSend}>
+            {chatBusy ? <span className="spinner" aria-hidden /> : '전송'}
           </button>
         </div>
       </div>
@@ -156,23 +180,8 @@ export default function Chat() {
       {error && (
         <div className="callout callout-danger">
           <div>{error}</div>
-          <button type="button" className="btn btn-ghost" style={{ marginTop: 10, padding: '8px 14px', fontSize: 13 }} onClick={retryChat} disabled={busy}>
+          <button type="button" className="btn btn-ghost" style={{ marginTop: 10, padding: '8px 14px', fontSize: 13 }} onClick={retryChat} disabled={chatBusy}>
             다시 시도{retryAfterSec ? ` (약 ${retryAfterSec}초 후 권장)` : ''}
-          </button>
-        </div>
-      )}
-
-      {chatState.readyToGenerate && chatState.caseTypeId && !result && (
-        <div className="callout callout-info" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <span>필요한 사실이 모두 모였습니다. 누가기록을 생성할까요?</span>
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={handleGenerate}>
-            {busy ? (
-              <>
-                <span className="spinner" aria-hidden /> 생성 중…
-              </>
-            ) : (
-              '누가기록 생성'
-            )}
           </button>
         </div>
       )}
@@ -180,7 +189,7 @@ export default function Chat() {
       {genError && (
         <div className="callout callout-danger">
           <div>{genError}</div>
-          <button type="button" className="btn btn-ghost" style={{ marginTop: 10, padding: '8px 14px', fontSize: 13 }} onClick={handleGenerate} disabled={busy}>
+          <button type="button" className="btn btn-ghost" style={{ marginTop: 10, padding: '8px 14px', fontSize: 13 }} onClick={handleGenerate} disabled={genBusy}>
             다시 시도
           </button>
         </div>
