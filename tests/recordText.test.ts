@@ -10,6 +10,7 @@ const r: GenerateResult = {
   teacherMemo: ['통보 시각 기록'],
   legalProtection: [{ element: '비례성', support: '안내 수준의 최소 개입', caseRefs: ['2021도13926'] }],
   warnings: [],
+  actionItems: [{ task: '보호자 통보 실시', how: '통보 완료: 2026-07-08 15:20 전화 통보' }],
 };
 
 describe('recordText', () => {
@@ -21,6 +22,22 @@ describe('recordText', () => {
     expect(t).toContain('법적 보호 분석');
     expect(t).toContain('2021도13926');
     expect(t).toContain('NEIS에 붙여넣지 말 것');
+  });
+
+  it('includes the action-items section after legal protection when present', () => {
+    const t = fullRecordText(r);
+    expect(t).toContain('[지금 해야 할 일 — NEIS에 붙여넣지 말 것]');
+    expect(t).toContain('- 보호자 통보 실시');
+    expect(t).toContain('  기록 방법: 통보 완료: 2026-07-08 15:20 전화 통보');
+    expect(t.indexOf('법적 보호 분석')).toBeLessThan(t.indexOf('지금 해야 할 일'));
+  });
+
+  it('omits the action-items section when actionItems is undefined or empty', () => {
+    const noItems = { ...r, actionItems: undefined };
+    expect(fullRecordText(noItems)).not.toContain('지금 해야 할 일');
+
+    const emptyItems = { ...r, actionItems: [] };
+    expect(fullRecordText(emptyItems)).not.toContain('지금 해야 할 일');
   });
 
   it('builds a skill-style filename, sanitizing forbidden chars', () => {

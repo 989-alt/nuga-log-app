@@ -1,4 +1,4 @@
-import type { GenerateResult, LegalProtection } from '@/lib/types';
+import type { ActionItem, GenerateResult, LegalProtection } from '@/lib/types';
 import { neisText } from '@/lib/format';
 
 function section(title: string, lines: string[]): string[] {
@@ -13,6 +13,15 @@ function legalLines(items: LegalProtection[]): string[] {
   });
 }
 
+function actionItemsSection(items: ActionItem[]): string[] {
+  if (items.length === 0) return [];
+  return [
+    '',
+    '[지금 해야 할 일 — NEIS에 붙여넣지 말 것]',
+    ...items.flatMap((it) => [`- ${it.task}`, `  기록 방법: ${it.how}`]),
+  ];
+}
+
 export function fullRecordText(r: GenerateResult): string {
   return [
     neisText(r),
@@ -20,6 +29,7 @@ export function fullRecordText(r: GenerateResult): string {
     ...section('향후 안전한 지도 방법 — 교사용', r.safeGuidance),
     ...section('교사 보관 메모', r.teacherMemo),
     ...section('법적 보호 분석 — 교사용', legalLines(r.legalProtection)),
+    ...actionItemsSection(r.actionItems ?? []),
   ].join('\n');
 }
 
