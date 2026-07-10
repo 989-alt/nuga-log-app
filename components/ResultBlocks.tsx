@@ -1,12 +1,22 @@
 'use client';
 import { useState } from 'react';
 import type { GenerateResult } from '@/lib/types';
-import { neisText } from '@/lib/format';
+import { fullRecordText, recordFilename } from '@/lib/recordText';
+import { supportsDirectorySave, saveViaPicker, downloadText } from '@/lib/fileSave';
+import LegalProtectionBlock, { type LegalProtectionContext } from '@/components/LegalProtectionBlock';
 
 type Copied = 'body' | 'all' | null;
 
-export default function ResultBlocks({ result }: { result: GenerateResult }) {
+export default function ResultBlocks({
+  result,
+  context,
+}: {
+  result: GenerateResult;
+  // 판례 더 찾기 요청에 필요한 사안 컨텍스트. Task 8(챗 흐름)에서 실제 값을 채워 넘긴다.
+  context?: LegalProtectionContext;
+}) {
   const [copied, setCopied] = useState<Copied>(null);
+  const [saved, setSaved] = useState(false);
 
   async function copy(which: Copied, text: string) {
     try {
@@ -14,6 +24,27 @@ export default function ResultBlocks({ result }: { result: GenerateResult }) {
       setCopied(which);
       setTimeout(() => setCopied((c) => (c === which ? null : c)), 1500);
     } catch { /* 클립보드 차단 시 사용자가 직접 선택 복사 */ }
+  }
+
+  async function save() {
+    const name = recordFilename(result, new Date().toISOString().slice(0, 10));
+    const text = fullRecordText(result);
+    if (supportsDirectorySave()) {
+      const res = await saveViaPicker(name, text);
+      if (res === 'unsupported') {
+        downloadText(name, text);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      } else if (res === 'saved') {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      }
+      // 'cancelled'면 아무것도 안 함
+    } else {
+      downloadText(name, text);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    }
   }
 
   const metaRows: [string, string][] = [
@@ -37,12 +68,15 @@ export default function ResultBlocks({ result }: { result: GenerateResult }) {
       <div className="card" style={{ borderLeft: '3px solid var(--accent)', padding: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '18px 24px', borderBottom: '1px solid var(--line)', background: 'var(--surface-sunken)' }}>
           <span className="badge badge-normal">NEIS 붙여넣기용 · 평어 종결</span>
-          <span style={{ display: 'inline-flex', gap: 8 }}>
+          <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-primary" style={{ padding: '9px 16px', fontSize: 13.5 }} onClick={() => copy('body', result.body)}>
               {copied === 'body' ? '✓ 복사됨' : '본문 복사'}
             </button>
-            <button type="button" className="btn btn-ghost" style={{ padding: '9px 16px', fontSize: 13.5 }} onClick={() => copy('all', neisText(result))}>
+            <button type="button" className="btn btn-ghost" style={{ padding: '9px 16px', fontSize: 13.5 }} onClick={() => copy('all', fullRecordText(result))}>
               {copied === 'all' ? '✓ 복사됨' : '전체 복사'}
+            </button>
+            <button type="button" className="btn btn-ghost" style={{ padding: '9px 16px', fontSize: 13.5 }} onClick={save}>
+              {saved ? '✓ 저장했습니다' : supportsDirectorySave() ? '누가기록 폴더에 저장' : '다운로드'}
             </button>
           </span>
         </div>
@@ -66,6 +100,7 @@ export default function ResultBlocks({ result }: { result: GenerateResult }) {
       <TeacherBlock title="교사 이해용 — 법령·판례 풀이" items={result.teacherUnderstanding} />
       <TeacherBlock title="향후 안전한 지도 방법" items={result.safeGuidance} />
       <TeacherBlock title="교사 보관 메모" items={result.teacherMemo} />
+      <LegalProtectionBlock items={result.legalProtection} context={context} />
     </div>
   );
 }

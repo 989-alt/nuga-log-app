@@ -26,4 +26,12 @@ describe('interview', () => {
     const ok = applyGate(true, {}, 1);
     expect(ok).toBe(false);
   });
+
+  it('system prompt enumerates per-type slot keys so the model can fill them', () => {
+    const p = buildInterviewSystemPrompt({ isSpecialEd: false, disabilities: [] });
+    expect(p).toContain('teacherUtterance*');   // 유형1 필수 슬롯 키
+    expect(p).toContain('restraintForm*');      // 유형6 필수 슬롯 키
+    expect(p).toContain('guardianNotice(');     // 유형1에서 optional 표기
+    expect(p).toContain('유형별 슬롯 키');
+  });
 });

@@ -3,6 +3,13 @@ import { CASE_TYPES } from '@/lib/caseTypes';
 import { validateSlots } from '@/lib/validation';
 import { disabilityLabels } from '@/lib/specialEd';
 
+function slotSpecLines(): string[] {
+  return CASE_TYPES.map((c) => {
+    const parts = c.slots.map((s) => `${s.key}${s.required ? '*' : ''}(${s.label})`).join(', ');
+    return `${c.id} ${c.name}: ${parts}`;
+  });
+}
+
 export function buildInterviewSystemPrompt(specialEd: SpecialEdInfo): string {
   const typeList = CASE_TYPES.map((c) => `${c.id}. ${c.name}`).join(' / ');
   const lines = [
@@ -19,7 +26,10 @@ export function buildInterviewSystemPrompt(specialEd: SpecialEdInfo): string {
       : '',
     '매 턴 아래 JSON 하나만 출력한다. 설명·코드펜스 금지.',
     '{"assistantMessage":"교사에게 할 다음 질문 또는 안내","caseTypeId":1~7 또는 null,"slotUpdates":{"슬롯키":"값"},"readyToGenerate":true/false}',
-    'slotUpdates의 키는 분류한 유형의 슬롯 키를 사용한다. 필수 사실이 모두 모이기 전에는 readyToGenerate를 true로 하지 않는다.',
+    'slotUpdates의 키는 아래 유형별 슬롯 키를 영문 그대로 사용한다(임의 키 금지). *표시는 필수 슬롯이다.',
+    '유형별 슬롯 키:',
+    ...slotSpecLines(),
+    '분류한 유형의 필수(*) 슬롯 값이 모두 모이기 전에는 readyToGenerate를 true로 하지 않는다. 모두 모였으면 즉시 true로 한다.',
   ].filter((l) => l !== '');
   return lines.join('\n');
 }
