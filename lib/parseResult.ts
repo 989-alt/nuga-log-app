@@ -38,6 +38,7 @@ export function parseModelJson(raw: string): Omit<GenerateResult, 'warnings'> {
     safeGuidance: toStringArray(obj.safeGuidance),
     teacherMemo: toStringArray(obj.teacherMemo),
     legalProtection: toLegalProtection(obj.legalProtection),
+    actionItems: toActionItems(obj.actionItems),
   };
 }
 
@@ -53,6 +54,15 @@ function toLegalProtection(v: unknown): import('@/lib/types').LegalProtection[] 
     support: String(x?.support ?? ''),
     caseRefs: Array.isArray(x?.caseRefs) ? x.caseRefs.map((c: any) => String(c)).filter((s: string) => s.trim() !== '') : [],
   })).filter((p) => p.element.trim() !== '' || p.support.trim() !== '');
+}
+
+// actionItems 정규화: {task,how} 문자열 쌍 배열로 강제하고, task가 빈 항목은 버린다.
+// 형식이 배열이 아니거나 없으면 빈 배열([])을 반환한다 — 항상 배열임을 보장한다.
+function toActionItems(v: unknown): import('@/lib/types').ActionItem[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x: any) => ({ task: String(x?.task ?? '').trim(), how: String(x?.how ?? '').trim() }))
+    .filter((a) => a.task !== '');
 }
 
 export async function runGenerate(

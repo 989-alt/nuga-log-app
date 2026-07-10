@@ -64,6 +64,13 @@ export interface LegalProtection {
   caseRefs: string[]; // 실제 검색된 판례 사건번호
 }
 
+// 아직 이행되지 않은 필수 절차 안내 항목. 본문에는 완료 사실만 적고,
+// 미완 절차는 이 배열로 안내한다(절차 구분 원칙).
+export interface ActionItem {
+  task: string; // 지금 수행할 절차
+  how: string; // 수행 후 누가기록에 추가로 기록할 문구 예시
+}
+
 export interface GenerateRequest {
   caseTypeId: CaseTypeId;
   slots: Record<string, string>;
@@ -88,6 +95,7 @@ export interface GenerateResult {
   teacherMemo: string[];
   warnings: string[];
   legalProtection: LegalProtection[];
+  actionItems?: ActionItem[];
   usedModel?: string;
   fallbackNote?: string;
 }
