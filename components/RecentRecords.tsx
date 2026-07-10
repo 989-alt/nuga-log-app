@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import type { HistoryItem } from '@/lib/history';
 import { loadHistory, clearHistory } from '@/lib/history';
 import { getCaseType } from '@/lib/caseTypes';
@@ -12,8 +13,8 @@ export default function RecentRecords() {
 
   useEffect(() => { setItems(loadHistory()); }, []);
 
-  // 마운트 전(SSR)·기록 없음 → 아무것도 렌더하지 않아 첫 방문 화면을 깔끔하게 유지.
-  if (!items || items.length === 0) return null;
+  // 마운트 전(SSR) → 아무것도 렌더하지 않아 첫 방문 화면을 깔끔하게 유지.
+  if (!items) return null;
 
   async function copy(item: HistoryItem) {
     try {
@@ -29,12 +30,32 @@ export default function RecentRecords() {
     setConfirmClear(false);
   }
 
+  if (items.length === 0) {
+    return (
+      <section style={{ marginTop: 12, textAlign: 'center', padding: '20px 0' }}>
+        <Image
+          src="/glass/icon-folder.png"
+          alt=""
+          width={96}
+          height={96}
+          style={{ borderRadius: 20, margin: '0 auto 16px', display: 'block' }}
+        />
+        <p style={{ fontSize: 14.5, color: 'var(--ink-muted)', lineHeight: 1.6 }}>
+          아직 기록이 없어요. 첫 사안을 대화로 알려 주세요.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section style={{ marginTop: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
-        <div>
-          <div className="eyebrow" style={{ marginBottom: 6 }}>최근 기록</div>
-          <div style={{ fontSize: 14, color: 'var(--ink-muted)' }}>이 브라우저에만 저장된 기록입니다.</div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Image src="/glass/icon-folder.png" alt="" width={28} height={28} style={{ borderRadius: 8, flexShrink: 0 }} />
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>최근 기록</div>
+            <div style={{ fontSize: 14, color: 'var(--ink-muted)' }}>이 브라우저에만 저장된 기록입니다.</div>
+          </div>
         </div>
         {confirmClear ? (
           <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>

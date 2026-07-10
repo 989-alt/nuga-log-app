@@ -6,7 +6,9 @@ import { LlmError } from '@/lib/llm';
 import { messageForStatus } from '@/lib/apiErrors';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// 초안+검증 루프가 LLM을 직렬 다회 호출하므로 느린 모델(pro급)에서 60초를 넘길 수 있다.
+// Fluid compute의 Hobby 상한(300초)까지 허용해 게이트웨이 504를 방지한다.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   let body: GenerateRequest;

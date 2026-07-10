@@ -2,6 +2,7 @@ import type { CaseTypeId, SpecialEdInfo } from '@/lib/types';
 import { CASE_TYPES } from '@/lib/caseTypes';
 import { validateSlots } from '@/lib/validation';
 import { disabilityLabels } from '@/lib/specialEd';
+import { groundingText } from '@/lib/legalKb';
 
 function slotSpecLines(): string[] {
   return CASE_TYPES.map((c) => {
@@ -24,6 +25,11 @@ export function buildInterviewSystemPrompt(specialEd: SpecialEdInfo): string {
     specialEd.isSpecialEd
       ? `- 대상 학생은 특수교육대상자다(${disabilityLabels(specialEd.disabilities).join(', ') || '유형 미상'}). 장애 특성을 고려하되, 장애 유형을 본문에 넣지 말고 행동 중심으로 수집한다.`
       : '',
+    '[참고 법령·판례]',
+    groundingText(specialEd.isSpecialEd),
+    '- 교사가 지도 방법을 모르겠다고 하거나 어떻게 해야 할지 물으면, 위 법령·판례와 교육학적 원칙(비례성, 단계적 개입, 긍정행동지원)에 근거한 지도 방법을 2~3가지 제안하고 각 방법의 근거(조문·판례 번호)를 assistantMessage 안에 함께 밝힌다.',
+    '- 필수(*) 슬롯이 모두 모여 readyToGenerate를 true로 낼 때는, assistantMessage를 수집 내용 한 줄 요약 뒤 정확히 "이 내용을 바탕으로 NEIS 누가기록 초안을 생성할까요?" 로 끝맺는다.',
+    '- 교사가 초안 생성 확인에 아니오라고 답하거나 추가·수정할 내용이 있다고 하면, 어떤 내용을 추가·수정할지 구체적으로 되묻는다(readyToGenerate는 다시 false).',
     '매 턴 아래 JSON 하나만 출력한다. 설명·코드펜스 금지.',
     '{"assistantMessage":"교사에게 할 다음 질문 또는 안내","caseTypeId":1~7 또는 null,"slotUpdates":{"슬롯키":"값"},"readyToGenerate":true/false}',
     'slotUpdates의 키는 아래 유형별 슬롯 키를 영문 그대로 사용한다(임의 키 금지). *표시는 필수 슬롯이다.',

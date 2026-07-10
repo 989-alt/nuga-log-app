@@ -64,7 +64,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Waits longer than this are NOT held open on the server (serverless timeout
 // risk); they bubble up as LlmError.retryAfterSec for the client to schedule.
-const QUICK_RETRY_MAX_MS = 5000;
+// /api/generate calls the LLM multiple times serially within one function
+// invocation (Vercel maxDuration=60), so this must stay well under that budget.
+const QUICK_RETRY_MAX_MS = 8000;
 
 /** Provider's suggested wait in seconds, or null. Reads the Retry-After header
  *  (OpenAI/Anthropic) and the Gemini 429 body ("retryDelay":"25s" / "retry in 25.9s"). */
