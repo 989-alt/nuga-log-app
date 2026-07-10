@@ -26,7 +26,7 @@ export function fullRecordText(r: GenerateResult): string {
 export function recordFilename(r: GenerateResult, isoDate: string): string {
   const raw = (r.meta.caseType ?? '').trim();
   // eslint-disable-next-line no-control-regex
-  const cleaned = raw.replace(/[\/\\:*?"<>|-]/g, '').replace(/\s+/g, '_').slice(0, 20);
+  const cleaned = raw.replace(/[\/\\:*?"<>|\x00-\x1f]/g, '').replace(/\s+/g, '_').slice(0, 20);
   const summary = cleaned || '기록';
   return `누가기록_${isoDate}_${summary}.txt`;
 }
