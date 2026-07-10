@@ -6,12 +6,19 @@ import { loadHistory, clearHistory } from '@/lib/history';
 import { getCaseType } from '@/lib/caseTypes';
 import { neisText } from '@/lib/format';
 
-export default function RecentRecords({ onFollowUp }: { onFollowUp?: (item: HistoryItem) => void }) {
+export default function RecentRecords({
+  onFollowUp,
+  refreshKey,
+}: {
+  onFollowUp?: (item: HistoryItem) => void;
+  refreshKey?: number;
+}) {
   const [items, setItems] = useState<HistoryItem[] | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => { setItems(loadHistory()); }, []);
+  // refreshKey가 바뀔 때마다(저장 직후 등) 다시 읽어 새 기록을 즉시 반영한다.
+  useEffect(() => { setItems(loadHistory()); }, [refreshKey]);
 
   // 마운트 전(SSR) → 아무것도 렌더하지 않아 첫 방문 화면을 깔끔하게 유지.
   if (!items) return null;

@@ -20,6 +20,11 @@ describe('evidence completeness rules — buildSystemPrompt', () => {
     expect(p).toContain('task');
     expect(p).toContain('how');
   });
+
+  it('includes an explicit trigger requiring actionItems when mandatory procedures are incomplete', () => {
+    const p = buildSystemPrompt();
+    expect(p).toContain('특히 원자료에 보호자 통보·관리자 보고·신고·분리조치가 미완(미통보, 아직 안 함, 예정)으로 나타나면 반드시 그 절차를 actionItems에 넣는다');
+  });
 });
 
 describe('evidence completeness rules — buildVerifyPrompt', () => {

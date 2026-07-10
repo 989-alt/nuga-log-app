@@ -41,9 +41,11 @@ function unreadableResponseMessage(status: number): string {
 export default function Chat({
   followUpTarget = null,
   onDone,
+  onSaved,
 }: {
   followUpTarget?: HistoryItem | null;
   onDone?: () => void;
+  onSaved?: () => void;
 } = {}) {
   const [ai, setAi] = useState<AiConfig>({ mode: 'byok' });
   const [specialEd, setSpecialEd] = useState<SpecialEdInfo>({ isSpecialEd: false, disabilities: [] });
@@ -191,6 +193,7 @@ export default function Chat({
         result: generated,
         ...(followUpTarget ? { parentId: followUpTarget.id } : {}),
       });
+      onSaved?.();
     } catch {
       setGenError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {

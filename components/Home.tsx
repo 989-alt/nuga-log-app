@@ -12,13 +12,18 @@ import RecentRecords from '@/components/RecentRecords';
  */
 export default function Home() {
   const [followUpTarget, setFollowUpTarget] = useState<HistoryItem | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   return (
     <>
-      <Chat followUpTarget={followUpTarget} onDone={() => setFollowUpTarget(null)} />
+      <Chat
+        followUpTarget={followUpTarget}
+        onDone={() => setFollowUpTarget(null)}
+        onSaved={() => setRefreshKey((k) => k + 1)}
+      />
 
       <hr className="hairline" style={{ margin: '48px 0 32px' }} />
-      <RecentRecords onFollowUp={setFollowUpTarget} />
+      <RecentRecords onFollowUp={setFollowUpTarget} refreshKey={refreshKey} />
     </>
   );
 }
