@@ -1,7 +1,50 @@
-import type { LegalProtection } from '@/lib/types';
+'use client';
+import { useState } from 'react';
+import type { CaseTypeId, LegalProtection, SpecialEdInfo } from '@/lib/types';
+import type { Precedent } from '@/lib/lawRetrieval';
 
-export default function LegalProtectionBlock({ items }: { items: LegalProtection[] }) {
+export interface LegalProtectionContext {
+  caseTypeId: CaseTypeId;
+  slots: Record<string, string>;
+  specialEd: SpecialEdInfo;
+}
+
+export default function LegalProtectionBlock({
+  items,
+  context,
+}: {
+  items: LegalProtection[];
+  context?: LegalProtectionContext;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [extra, setExtra] = useState<Precedent[]>([]);
+
   if (items.length === 0) return null;
+
+  async function findMore() {
+    if (!context || loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/precedents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(context),
+      });
+      if (!res.ok) {
+        setExtra([]);
+      } else {
+        const data = await res.json();
+        setExtra(Array.isArray(data?.precedents) ? data.precedents : []);
+      }
+    } catch {
+      setExtra([]);
+    } finally {
+      setSearched(true);
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="card">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -23,6 +66,37 @@ export default function LegalProtectionBlock({ items }: { items: LegalProtection
           </li>
         ))}
       </ul>
+
+      {context && (
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ padding: '9px 16px', fontSize: 13.5 }}
+            onClick={findMore}
+            disabled={loading}
+          >
+            {loading ? '판례 검색 중…' : '판례 더 찾기'}
+          </button>
+
+          {searched && !loading && extra.length === 0 && (
+            <p style={{ fontSize: 13.5, color: 'var(--ink-muted)', marginTop: 10 }}>
+              추가 판례를 찾지 못했습니다.
+            </p>
+          )}
+
+          {extra.length > 0 && (
+            <ul style={{ margin: '12px 0 0', paddingLeft: 20, display: 'grid', gap: 10 }}>
+              {extra.map((p, i) => (
+                <li key={i} style={{ fontSize: 15, color: 'var(--ink-soft)', lineHeight: 1.7, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
+                  <span className="badge badge-normal" style={{ fontSize: 12, marginRight: 8 }}>{p.caseNo}</span>
+                  {p.gist}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }

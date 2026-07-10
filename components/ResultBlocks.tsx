@@ -3,11 +3,18 @@ import { useState } from 'react';
 import type { GenerateResult } from '@/lib/types';
 import { fullRecordText, recordFilename } from '@/lib/recordText';
 import { supportsDirectorySave, saveViaPicker, downloadText } from '@/lib/fileSave';
-import LegalProtectionBlock from '@/components/LegalProtectionBlock';
+import LegalProtectionBlock, { type LegalProtectionContext } from '@/components/LegalProtectionBlock';
 
 type Copied = 'body' | 'all' | null;
 
-export default function ResultBlocks({ result }: { result: GenerateResult }) {
+export default function ResultBlocks({
+  result,
+  context,
+}: {
+  result: GenerateResult;
+  // 판례 더 찾기 요청에 필요한 사안 컨텍스트. Task 8(챗 흐름)에서 실제 값을 채워 넘긴다.
+  context?: LegalProtectionContext;
+}) {
   const [copied, setCopied] = useState<Copied>(null);
   const [saved, setSaved] = useState(false);
 
@@ -93,7 +100,7 @@ export default function ResultBlocks({ result }: { result: GenerateResult }) {
       <TeacherBlock title="교사 이해용 — 법령·판례 풀이" items={result.teacherUnderstanding} />
       <TeacherBlock title="향후 안전한 지도 방법" items={result.safeGuidance} />
       <TeacherBlock title="교사 보관 메모" items={result.teacherMemo} />
-      <LegalProtectionBlock items={result.legalProtection} />
+      <LegalProtectionBlock items={result.legalProtection} context={context} />
     </div>
   );
 }
