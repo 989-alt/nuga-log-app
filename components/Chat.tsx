@@ -9,6 +9,15 @@ import ChatThread from '@/components/ChatThread';
 import ResultBlocks from '@/components/ResultBlocks';
 import { addHistory, makeId } from '@/lib/history';
 
+/** 응답 본문을 JSON으로 해석하지 못했을 때(예: 504/502 게이트웨이 타임아웃이 HTML/빈
+ *  본문을 돌려주는 경우) 보여줄 문구. res.ok 여부와 무관하게 "해석 실패"는 별도 문구다. */
+function unreadableResponseMessage(status: number): string {
+  if (status === 504 || status === 502) {
+    return '서버 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  return `서버 응답을 해석하지 못했습니다(상태 ${status}). 다시 시도해 주세요.`;
+}
+
 /**
  * 챗 UI 컨테이너. 대화(transcript)는 이 컴포넌트 상태(메모리)에만 존재하고,
  * 새로고침하면 사라진다 — localStorage에는 최종 누가기록(addHistory)만 저장한다.
@@ -46,7 +55,11 @@ export default function Chat() {
           ai,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (data === null) {
+        setError(unreadableResponseMessage(res.status));
+        return;
+      }
       if (!res.ok) {
         if (res.status === 429) setRetryAfterSec(Math.min(Math.max(Number(data.retryAfterSec) || 30, 1), 90));
         setError(data.error ?? '대화 처리 중 오류가 발생했습니다.');
@@ -84,7 +97,11 @@ export default function Chat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ caseTypeId: chatState.caseTypeId, slots: chatState.slots, specialEd, ai }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (data === null) {
+        setGenError(unreadableResponseMessage(res.status));
+        return;
+      }
       if (!res.ok) {
         if (res.status === 429) {
           const when = data.retryAfterSec ? `약 ${data.retryAfterSec}초 뒤` : '잠시 후';
