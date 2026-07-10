@@ -250,6 +250,22 @@ details.disclosure > summary .chev { transition: transform 0.2s ease; color: var
 details.disclosure[open] > summary .chev { transform: rotate(180deg); }
 .disclosure-body { padding: 0 18px 18px; }
 
+/* --- 타이핑 인디케이터 --- */
+.typing-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ink-muted);
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.typing-phrase { animation: typing-phrase-fade 0.35s ease; }
+@keyframes typing-phrase-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* --- 접근성: 모션 감소 --- */
 @media (prefers-reduced-motion: reduce) {
   * {
