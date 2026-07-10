@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runChatTurn } from '@/app/api/chat/route';
+import { runChatTurn } from '@/lib/chatTurn';
 import type { ChatTurnRequest } from '@/lib/types';
 
 function mockLlm(json: object): typeof fetch {

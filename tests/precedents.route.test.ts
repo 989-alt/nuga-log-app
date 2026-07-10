@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runPrecedents } from '@/app/api/precedents/route';
+import { runPrecedents } from '@/lib/precedentsQuery';
 
 function mcpMock(text: string): typeof fetch {
   return (async (url: string) =>
