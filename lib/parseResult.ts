@@ -1,8 +1,9 @@
-import type { GenerateRequest, GenerateResult, LegalProtection } from '@/lib/types';
+import type { FollowUpContext, GenerateRequest, GenerateResult, LegalProtection } from '@/lib/types';
 import { validateSlots } from '@/lib/validation';
+import { validateFollowUpSlots } from '@/lib/followUp';
 import { getCaseType } from '@/lib/caseTypes';
-import { buildSystemPrompt, buildUserPrompt, buildVerifyPrompt } from '@/lib/prompt';
-import { retrieveBasis } from '@/lib/lawRetrieval';
+import { buildFollowUpUserPrompt, buildSystemPrompt, buildUserPrompt, buildVerifyPrompt } from '@/lib/prompt';
+import { retrieveBasis, type RetrievedBasis } from '@/lib/lawRetrieval';
 import { allowedCaseSet, stripUnknownCaseNumbers } from '@/lib/precedentGuard';
 import { callLlmLadder, buildLadder } from '@/lib/llm';
 import { applyConversions, scanProhibited } from '@/lib/prohibited';
@@ -38,6 +39,7 @@ export function parseModelJson(raw: string): Omit<GenerateResult, 'warnings'> {
     safeGuidance: toStringArray(obj.safeGuidance),
     teacherMemo: toStringArray(obj.teacherMemo),
     legalProtection: toLegalProtection(obj.legalProtection),
+    actionItems: toActionItems(obj.actionItems),
   };
 }
 
@@ -55,10 +57,23 @@ function toLegalProtection(v: unknown): import('@/lib/types').LegalProtection[] 
   })).filter((p) => p.element.trim() !== '' || p.support.trim() !== '');
 }
 
+// actionItems 정규화: {task,how} 문자열 쌍 배열로 강제하고, task가 빈 항목은 버린다.
+// 형식이 배열이 아니거나 없으면 빈 배열([])을 반환한다 — 항상 배열임을 보장한다.
+function toActionItems(v: unknown): import('@/lib/types').ActionItem[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x: any) => ({ task: String(x?.task ?? '').trim(), how: String(x?.how ?? '').trim() }))
+    .filter((a) => a.task !== '');
+}
+
 export async function runGenerate(
   req: GenerateRequest,
   opts?: { fetchImpl?: typeof fetch; geminiKey?: string; retryDelayMs?: number }
 ): Promise<GenerateResult> {
+  if (req.followUp) {
+    return runFollowUpGenerate(req, req.followUp, opts);
+  }
+
   const missing = validateSlots(req.caseTypeId, req.slots);
   if (missing.length > 0) {
     throw new Error(`필수 항목이 비어 있습니다: ${missing.join(', ')}`);
@@ -77,14 +92,71 @@ export async function runGenerate(
   const user = buildUserPrompt({ caseTypeId: req.caseTypeId, slots: req.slots, specialEd: req.specialEd, basis });
   const models = buildLadder(req.ai);
   const preferred = models[0];
-  const warnings: string[] = [];
 
   const draftCall = await callLlmLadder({ system, user, ai: req.ai, models, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey, retryDelayMs: opts?.retryDelayMs });
-  let parsed = parseModelJson(draftCall.text);
-  let usedModel = draftCall.usedModel;
+  const parsed = parseModelJson(draftCall.text);
+  const facts = Object.entries(req.slots).map(([k, v]) => `${k}: ${v}`).join(' / ');
+
+  return verifyAndFinalize({ parsed, usedModel: draftCall.usedModel, preferred, facts, basis, req, opts });
+}
+
+/**
+ * 후속 기록 생성 경로. 원 사건(followUp)을 원자료로 제시하는 buildFollowUpUserPrompt를 쓰고,
+ * 법령 검색 키워드는 [유형명, 수행한 절차, 결과]로 좁힌다. 검증 루프·환각 제거는
+ * 일반 경로(runGenerate)와 완전히 동일한 verifyAndFinalize를 공유한다.
+ */
+async function runFollowUpGenerate(
+  req: GenerateRequest,
+  followUp: FollowUpContext,
+  opts?: { fetchImpl?: typeof fetch; geminiKey?: string; retryDelayMs?: number }
+): Promise<GenerateResult> {
+  const missing = validateFollowUpSlots(req.slots);
+  if (missing.length > 0) {
+    throw new Error(`필수 항목이 비어 있습니다: ${missing.join(', ')}`);
+  }
+
+  const type = getCaseType(followUp.caseTypeId);
+  const keywords = [type.name, req.slots.followUpAction, req.slots.outcome]
+    .filter((k): k is string => typeof k === 'string' && k.trim() !== '');
+  const basis = await retrieveBasis({
+    caseTypeId: followUp.caseTypeId,
+    keywords,
+    specialEd: req.specialEd.isSpecialEd,
+    fetchImpl: opts?.fetchImpl,
+  });
+
+  const system = buildSystemPrompt();
+  const user = buildFollowUpUserPrompt({ followUp, slots: req.slots, specialEd: req.specialEd, basis });
+  const models = buildLadder(req.ai);
+  const preferred = models[0];
+
+  const draftCall = await callLlmLadder({ system, user, ai: req.ai, models, fetchImpl: opts?.fetchImpl, geminiKey: opts?.geminiKey, retryDelayMs: opts?.retryDelayMs });
+  const parsed = parseModelJson(draftCall.text);
+  const facts = Object.entries(req.slots).map(([k, v]) => `${k}: ${v}`).join(' / ');
+
+  return verifyAndFinalize({ parsed, usedModel: draftCall.usedModel, preferred, facts, basis, req, opts });
+}
+
+/**
+ * runGenerate/runFollowUpGenerate가 공유하는 뒷단: 검증 루프(본문 감사·보강),
+ * 판례 환각 제거, 금지표현 스캔. 초안 파싱까지만 다른 두 경로가 이 함수로 수렴한다.
+ */
+async function verifyAndFinalize(args: {
+  parsed: Omit<GenerateResult, 'warnings' | 'usedModel' | 'fallbackNote'>;
+  usedModel: string;
+  preferred: string;
+  facts: string;
+  basis: RetrievedBasis;
+  req: GenerateRequest;
+  opts?: { fetchImpl?: typeof fetch; geminiKey?: string; retryDelayMs?: number };
+}): Promise<GenerateResult> {
+  const { req, opts, basis, facts, preferred } = args;
+  const parsed = args.parsed;
+  let usedModel = args.usedModel;
+  const models = buildLadder(req.ai);
+  const warnings: string[] = [];
 
   // 검증 루프: 본문을 감사·보강. 실패해도 최선본 유지.
-  const facts = Object.entries(req.slots).map(([k, v]) => `${k}: ${v}`).join(' / ');
   let verified = false;
   for (let round = 0; round < MAX_VERIFY_ROUNDS; round++) {
     try {

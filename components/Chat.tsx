@@ -1,6 +1,6 @@
 'use client';
-import { useRef, useState } from 'react';
-import type { AiConfig, ChatTurnResponse, GenerateResult, SpecialEdInfo, ThinkingLevel } from '@/lib/types';
+import { useEffect, useRef, useState } from 'react';
+import type { AiConfig, ChatTurnResponse, FollowUpContext, GenerateResult, SpecialEdInfo, ThinkingLevel } from '@/lib/types';
 import { initialChatState, withUserMessage, withTurnResponse, type ChatState } from '@/lib/chatState';
 import { getCaseType } from '@/lib/caseTypes';
 import ApiKeyPanel from '@/components/ApiKeyPanel';
@@ -8,7 +8,22 @@ import SpecialEdPanel from '@/components/SpecialEdPanel';
 import ChatThread from '@/components/ChatThread';
 import ResultBlocks from '@/components/ResultBlocks';
 import QuickReplies from '@/components/QuickReplies';
-import { addHistory, makeId } from '@/lib/history';
+import { addHistory, makeId, type HistoryItem } from '@/lib/history';
+
+/** "YYYY-MM-DD" → "M월 D일". */
+function formatMonthDay(isoDate: string): string {
+  const [, m, d] = isoDate.split('-');
+  return `${Number(m)}월 ${Number(d)}일`;
+}
+
+function followUpContextOf(item: HistoryItem): FollowUpContext {
+  return {
+    parentId: item.id,
+    parentDate: item.date,
+    caseTypeId: item.caseTypeId,
+    parentBody: item.result.body,
+  };
+}
 
 /** 응답 본문을 JSON으로 해석하지 못했을 때(예: 504/502 게이트웨이 타임아웃이 HTML/빈
  *  본문을 돌려주는 경우) 보여줄 문구. res.ok 여부와 무관하게 "해석 실패"는 별도 문구다. */
@@ -23,7 +38,15 @@ function unreadableResponseMessage(status: number): string {
  * 챗 UI 컨테이너. 대화(transcript)는 이 컴포넌트 상태(메모리)에만 존재하고,
  * 새로고침하면 사라진다 — localStorage에는 최종 누가기록(addHistory)만 저장한다.
  */
-export default function Chat() {
+export default function Chat({
+  followUpTarget = null,
+  onDone,
+  onSaved,
+}: {
+  followUpTarget?: HistoryItem | null;
+  onDone?: () => void;
+  onSaved?: () => void;
+} = {}) {
   const [ai, setAi] = useState<AiConfig>({ mode: 'byok' });
   const [specialEd, setSpecialEd] = useState<SpecialEdInfo>({ isSpecialEd: false, disabilities: [] });
   const [chatState, setChatState] = useState<ChatState>(initialChatState);
@@ -37,6 +60,37 @@ export default function Chat() {
 
   const stateRef = useRef(chatState);
   stateRef.current = chatState;
+
+  const prevFollowUpId = useRef<string | null>(null);
+
+  // followUpTarget이 설정/해제될 때만 챗을 리셋한다(같은 항목이 다시 선택돼도 재트리거되도록
+  // id 변화만 감시). "취소"로 null이 되면 처음 상태로 되돌아간다.
+  useEffect(() => {
+    const currentId = followUpTarget?.id ?? null;
+    if (currentId === prevFollowUpId.current) return;
+    prevFollowUpId.current = currentId;
+
+    if (followUpTarget) {
+      const type = getCaseType(followUpTarget.caseTypeId);
+      setChatState({
+        messages: [
+          {
+            role: 'assistant',
+            content: `${formatMonthDay(followUpTarget.date)} '${type.name}' 기록의 후속 기록이군요. 어떤 절차를 밟으셨나요? (예: 보호자 통보 완료, 상담 실시, 협의회 개최, 재관찰 결과, 전문기관 연계)`,
+          },
+        ],
+        slots: {},
+        caseTypeId: followUpTarget.caseTypeId,
+        readyToGenerate: false,
+      });
+    } else {
+      setChatState(initialChatState);
+    }
+    setResult(null);
+    setGenError(null);
+    setError(null);
+    setRetryAfterSec(null);
+  }, [followUpTarget]);
 
   const defaultThinking: ThinkingLevel =
     chatState.caseTypeId && getCaseType(chatState.caseTypeId).highRisk ? 'dynamic' : 'off';
@@ -55,6 +109,7 @@ export default function Chat() {
           caseTypeId: nextState.caseTypeId,
           specialEd,
           ai,
+          ...(followUpTarget ? { followUp: followUpContextOf(followUpTarget) } : {}),
         }),
       });
       const data = await res.json().catch(() => null);
@@ -103,7 +158,13 @@ export default function Chat() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ caseTypeId: chatState.caseTypeId, slots: chatState.slots, specialEd, ai }),
+        body: JSON.stringify({
+          caseTypeId: chatState.caseTypeId,
+          slots: chatState.slots,
+          specialEd,
+          ai,
+          ...(followUpTarget ? { followUp: followUpContextOf(followUpTarget) } : {}),
+        }),
       });
       const data = await res.json().catch(() => null);
       if (data === null) {
@@ -130,7 +191,9 @@ export default function Chat() {
         date: new Date().toISOString().slice(0, 10),
         caseTypeId: chatState.caseTypeId,
         result: generated,
+        ...(followUpTarget ? { parentId: followUpTarget.id } : {}),
       });
+      onSaved?.();
     } catch {
       setGenError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
@@ -142,6 +205,29 @@ export default function Chat() {
     <div style={{ display: 'grid', gap: 20 }}>
       <ApiKeyPanel onChange={setAi} defaultThinking={defaultThinking} />
       <SpecialEdPanel value={specialEd} onChange={setSpecialEd} />
+
+      {followUpTarget && (
+        <div className="callout callout-info" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              후속 기록 작성 중 — {formatMonthDay(followUpTarget.date)} · {getCaseType(followUpTarget.caseTypeId).name}
+            </div>
+            <div style={{ fontSize: 13.5, opacity: 0.85 }}>
+              {followUpTarget.result.body.length > 60
+                ? followUpTarget.result.body.slice(0, 60) + '…'
+                : followUpTarget.result.body}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0 }}
+            onClick={() => onDone?.()}
+          >
+            취소
+          </button>
+        </div>
+      )}
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <ChatThread messages={chatState.messages} typing={chatBusy ? 'chat' : genBusy ? 'generate' : null} />

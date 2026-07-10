@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { GenerateRequest } from '@/lib/types';
 import { validateSlots } from '@/lib/validation';
+import { validateFollowUpSlots } from '@/lib/followUp';
 import { runGenerate } from '@/lib/parseResult';
 import { LlmError } from '@/lib/llm';
 import { messageForStatus } from '@/lib/apiErrors';
@@ -18,7 +19,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '요청 형식이 올바르지 않습니다.' }, { status: 400 });
   }
 
-  const missing = validateSlots(body.caseTypeId, body.slots ?? {});
+  // 후속 기록 요청은 원 사건 유형의 슬롯이 아니라 고정된 후속 슬롯(FOLLOWUP_SLOTS)으로 검증한다.
+  const missing = body.followUp
+    ? validateFollowUpSlots(body.slots ?? {})
+    : validateSlots(body.caseTypeId, body.slots ?? {});
   if (missing.length > 0) {
     return NextResponse.json({ error: '필수 항목이 비어 있습니다.', missing }, { status: 400 });
   }

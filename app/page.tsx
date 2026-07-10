@@ -1,11 +1,10 @@
 import Image from 'next/image';
 import SiteHeader from '@/components/SiteHeader';
-import Chat from '@/components/Chat';
-import RecentRecords from '@/components/RecentRecords';
+import Home from '@/components/Home';
 
 const TRUST_CHIPS = ['고시·법령 근거', '판례 검증', '브라우저에만 저장'];
 
-export default function Home() {
+export default function Page() {
   return (
     <>
       <SiteHeader />
@@ -46,10 +45,7 @@ export default function Home() {
 
         <hr className="hairline" style={{ margin: '44px 0 32px' }} />
 
-        <Chat />
-
-        <hr className="hairline" style={{ margin: '48px 0 32px' }} />
-        <RecentRecords />
+        <Home />
       </main>
     </>
   );

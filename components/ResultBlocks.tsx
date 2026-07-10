@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import type { GenerateResult } from '@/lib/types';
+import type { ActionItem, GenerateResult } from '@/lib/types';
 import { fullRecordText, recordFilename } from '@/lib/recordText';
 import { supportsDirectorySave, saveViaPicker, downloadText } from '@/lib/fileSave';
 import LegalProtectionBlock, { type LegalProtectionContext } from '@/components/LegalProtectionBlock';
@@ -97,10 +97,32 @@ export default function ResultBlocks({
         </dl>
       </div>
 
+      <ActionItemsBlock items={result.actionItems ?? []} />
+
       <TeacherBlock title="교사 이해용 — 법령·판례 풀이" items={result.teacherUnderstanding} />
       <TeacherBlock title="향후 안전한 지도 방법" items={result.safeGuidance} />
       <TeacherBlock title="교사 보관 메모" items={result.teacherMemo} />
       <LegalProtectionBlock items={result.legalProtection} context={context} />
+    </div>
+  );
+}
+
+function ActionItemsBlock({ items }: { items: ActionItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>지금 해야 할 일 — 기록의 증빙력을 완성하세요</span>
+        <span className="badge" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>NEIS에 붙여넣지 말 것</span>
+      </div>
+      <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 12 }}>
+        {items.map((it, i) => (
+          <li key={i} style={{ fontSize: 15, lineHeight: 1.7, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
+            <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{it.task}</div>
+            <div style={{ fontSize: 14, color: 'var(--ink-soft)' }}>기록 방법: {it.how}</div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

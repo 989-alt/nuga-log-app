@@ -6,12 +6,19 @@ import { loadHistory, clearHistory } from '@/lib/history';
 import { getCaseType } from '@/lib/caseTypes';
 import { neisText } from '@/lib/format';
 
-export default function RecentRecords() {
+export default function RecentRecords({
+  onFollowUp,
+  refreshKey,
+}: {
+  onFollowUp?: (item: HistoryItem) => void;
+  refreshKey?: number;
+}) {
   const [items, setItems] = useState<HistoryItem[] | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => { setItems(loadHistory()); }, []);
+  // refreshKey가 바뀔 때마다(저장 직후 등) 다시 읽어 새 기록을 즉시 반영한다.
+  useEffect(() => { setItems(loadHistory()); }, [refreshKey]);
 
   // 마운트 전(SSR) → 아무것도 렌더하지 않아 첫 방문 화면을 깔끔하게 유지.
   if (!items) return null;
@@ -28,6 +35,11 @@ export default function RecentRecords() {
     clearHistory();
     setItems([]);
     setConfirmClear(false);
+  }
+
+  function followUp(item: HistoryItem) {
+    onFollowUp?.(item);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   if (items.length === 0) {
@@ -78,12 +90,27 @@ export default function RecentRecords() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
                   <span className={type.highRisk ? 'badge badge-risk' : 'badge badge-neutral'}>{type.shortName}</span>
                   <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>{item.date}</span>
+                  {item.parentId && (
+                    <span
+                      className="badge"
+                      style={{ background: 'var(--accent-weak)', color: 'var(--accent)' }}
+                    >
+                      ↳ 후속
+                    </span>
+                  )}
                 </div>
                 <p style={{ fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.6 }}>{snippet}</p>
               </div>
-              <button type="button" className="btn btn-ghost" style={{ padding: '9px 14px', fontSize: 13, flexShrink: 0 }} onClick={() => copy(item)}>
-                {copiedId === item.id ? '복사됨' : '복사'}
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+                <button type="button" className="btn btn-ghost" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => copy(item)}>
+                  {copiedId === item.id ? '복사됨' : '복사'}
+                </button>
+                {onFollowUp && (
+                  <button type="button" className="btn btn-ghost" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => followUp(item)}>
+                    후속 기록 작성
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}

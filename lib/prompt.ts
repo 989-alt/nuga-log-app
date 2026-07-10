@@ -1,6 +1,7 @@
 import { getCaseType } from '@/lib/caseTypes';
-import type { CaseTypeId, SpecialEdInfo } from '@/lib/types';
+import type { CaseTypeId, FollowUpContext, SpecialEdInfo } from '@/lib/types';
 import type { RetrievedBasis } from '@/lib/lawRetrieval';
+import { FOLLOWUP_SLOTS } from '@/lib/followUp';
 
 // 변환 수준을 보여 주는 예시 출력. 실제 스키마와 동일하게 JSON.stringify 해서
 // 프롬프트에 넣는다(수작업 escape 회피 + 유효 JSON 보장).
@@ -24,6 +25,7 @@ const EXAMPLE_OUTPUT = {
   teacherMemo: [
     "반복 시 날짜와 시각, 구체 행동을 개인 메모로 축적해 사실관계를 보강한다.",
   ],
+  actionItems: [],
 };
 
 export function buildSystemPrompt(): string {
@@ -61,6 +63,15 @@ export function buildSystemPrompt(): string {
     '- safeGuidance: 같은 유형을 다음에 더 안전하게 지도하는 구체적·행동 가능한 실천 지침 2~4가지. "잘 지도하세요" 같은 일반론 금지.',
     '- teacherMemo: 분쟁 대비 자료(목격자, 통화·상담 기록, 사진·메시지 캡처, 별도 진술서 등)를 구체적으로 적는다.',
     '- legalProtection: 본 사안 사실을 방어 4요건(구체 관찰사실·적용 지도단계·비례성·후속)과 제공된 판례에 연결해 교사용으로 정리한다. caseRefs에는 아래 사용자 프롬프트에 제공된 사건번호만 넣고, 제공되지 않은 판례는 만들지 않는다. 이 블록과 판례는 본문(body)에 넣지 않는다.',
+    '- actionItems: 절차 구분 원칙(아래)에 따라 아직 이행되지 않은 필수 절차가 있으면 무엇을 지금 해야 하는지(task)와 수행 후 누가기록에 어떻게 추가로 기록할지(how)를 항목화한다. 미이행 필수 절차가 없으면 빈 배열([])로 둔다.',
+    '',
+    '증빙 완결성 규칙(모든 유형 공통 — 법적 증빙으로서의 구멍을 막는다):',
+    '- 같은 행동이 반복된 사안이면 본문에 확정된 횟수(불확실하면 "최소 N회"로)와 반복될 때마다 교사가 취한 대응을 반드시 기재한다. "여러 번", "몇 차례" 같은 모호한 표현만 쓰지 않는다.',
+    '- 본문 끝에는 상황이 어떻게 종결되었는지(예: 학생이 진정함, 수업에 복귀함, 보호자가 귀가 조치함)를 반드시 기재한다.',
+    '- 절차 구분 원칙: 이행 의무가 있는 절차(보호자 통보·신고·관리자 보고·분리조치)는 본문에 완료된 사실만(일시·수단·상대 반응) 기재하고, 미완이면 본문에 "예정"으로 쓰지 않고 actionItems로 안내한다. 장래 교육 계획(재관찰·상담 예정·IEP 협의 예정)은 예정 표현을 허용한다.',
+    '- 입력에 다른 학생이 목격했거나 연루된 사실이 있으면, 그 다른 학생을 보호하기 위해 취한 조치(자리 분리, 별도 확인 등)를 본문에 기재한다. 입력에 없는 보호 조치는 지어내지 않는다.',
+    '- 입력에 신체 특이 소견(멍·상처 등)을 확인한 사실이 있으면 그 확인 사실과 결과를 본문에 기재한다.',
+    '- 특히 원자료에 보호자 통보·관리자 보고·신고·분리조치가 미완(미통보, 아직 안 함, 예정)으로 나타나면 반드시 그 절차를 actionItems에 넣는다. 예: {"task":"오늘 중 보호자에게 전화로 사안을 통보한다","how":"통보 후 같은 날짜 누가기록에 \'HH시 MM분 모(부)에게 전화로 통보함. 보호자는 ~라고 답함\'을 추가 기록한다"}. 필수 절차가 모두 완료된 사안만 빈 배열로 둔다.',
     '',
     '아래는 변환의 형식과 깊이를 보여 주는 예시다. 이 예시의 내용·문장을 절대 복사하지 말고, 변환 방식만 참고한다.',
     '[예시 원자료] 일시 2026.6.2.(화) 2교시 / 장소 교실 / 관찰된 행동: 애가 수업 중에 계속 떠들고 산만했음, 짝한테 시비도 걸었음 / 교사 발화: 조용히 하라고 여러 번 말함 / 학생 발화: 몰라요 그냥요 / 지도 단계: 주의 / 학생 반응: 잠깐 조용했다 또 그럼 / 후속: 지켜보고 상담',
@@ -81,7 +92,8 @@ export function buildSystemPrompt(): string {
     '  "teacherUnderstanding": ["교사 이해용 항목 1", "항목 2"],',
     '  "safeGuidance": ["향후 안전 지도 항목 1", "항목 2"],',
     '  "teacherMemo": ["교사 보관 메모 항목 1"],',
-    '  "legalProtection": [{ "element": "방어 요건/논점", "support": "사안 사실과 근거의 연결", "caseRefs": ["실제 제공된 사건번호만"] }]',
+    '  "legalProtection": [{ "element": "방어 요건/논점", "support": "사안 사실과 근거의 연결", "caseRefs": ["실제 제공된 사건번호만"] }],',
+    '  "actionItems": [{ "task": "지금 수행할 절차", "how": "수행 후 누가기록에 추가로 기록할 문구 예시" }]',
     '}',
   ].join('\n');
 }
@@ -121,12 +133,70 @@ export function buildUserPrompt(args: {
   return lines.join('\n');
 }
 
+// "2026-07-08" 같은 ISO 날짜를 "7월 8일"로 풀어 쓴다. 파싱 실패 시 원문 그대로 반환.
+function monthDayLabel(dateStr: string): string {
+  const m = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return dateStr;
+  return `${Number(m[2])}월 ${Number(m[3])}일`;
+}
+
+/**
+ * 기존 누가기록(원 사건)을 원자료로 제시하고 그 후속 조치 사실(FOLLOWUP_SLOTS)로
+ * 후속 누가기록을 작성시키는 사용자 프롬프트. 시스템 프롬프트는 buildSystemPrompt()를
+ * 그대로 재사용한다(별도 후속용 시스템 프롬프트 없음).
+ */
+export function buildFollowUpUserPrompt(args: {
+  followUp: FollowUpContext;
+  slots: Record<string, string>;
+  specialEd: SpecialEdInfo;
+  basis: RetrievedBasis;
+}): string {
+  const type = getCaseType(args.followUp.caseTypeId);
+  const dateLabel = monthDayLabel(args.followUp.parentDate);
+  const lines: string[] = [];
+  lines.push(`사안 유형: ${type.name} (후속 기록)`);
+  lines.push(`원 기록 일자: ${args.followUp.parentDate}`);
+  lines.push('아래는 원 사건 기록 전문이다. 이 사실관계를 전제로 삼되, 후속 누가기록 본문에서 이 내용을 재서술하지 않는다.');
+  lines.push('[원 기록 본문 전문]');
+  lines.push(args.followUp.parentBody);
+  lines.push('');
+  lines.push('정적 근거 조문(참고):');
+  for (const b of type.bases) lines.push(`- ${b}`);
+  lines.push('');
+  lines.push(args.basis.grounding);
+  lines.push('');
+  if (args.basis.precedents.length > 0) {
+    lines.push('검색된 판례(caseRefs에 이 사건번호만 사용, 없는 판례 창작 금지):');
+    for (const p of args.basis.precedents) lines.push(`- ${p.caseNo}: ${p.gist}`);
+    lines.push('');
+  }
+  if (args.specialEd.isSpecialEd) {
+    lines.push('이 사안의 대상 학생은 특수교육대상자이며 문제행동이 반복·심각하다. [근거]에 "교원의 학생생활지도에 관한 고시 제15조③(특수교육대상자의 심각한 문제행동은 개별화교육계획에 행동중재지원 사항 포함)"을 함께 인용하고, [향후 안전한 지도 방법]에 특수교육 지원팀·행동중재전문가 연계와 개별화교육계획(IEP) 갱신 요청을 포함한다.');
+    lines.push('');
+  }
+  lines.push('아래는 그 후속 조치의 원자료다. 이 어휘를 그대로 옮기지 말고, 시스템 규칙과 예시의 변환 수준으로 사실을 분해해 새로 작성하라.');
+  for (const slot of FOLLOWUP_SLOTS) {
+    const v = args.slots[slot.key];
+    if (v && v.trim() !== '') lines.push(`- ${slot.label}: ${v.trim()}`);
+  }
+  lines.push('');
+  lines.push('후속 누가기록 작성 규칙:');
+  lines.push(`- 본문은 "${dateLabel} 기록된 ${type.name} 사안의 후속 조치로서 …함" 취지의 표현으로 원 사안을 정확히 1구절만 참조한다. 원 기록 본문의 사실을 다시 서술(재서술)하지 않는다.`);
+  lines.push('- 그 뒤로는 이번에 수집된 후속 조치 사실(수행한 절차·일시·상대·결과·다음 계획)만으로 평어체 객관 서술 한 문단을 작성한다. 시스템 프롬프트의 본문 작성 규칙(평어 종결, 마크다운 금지, 직접인용 규칙 등)을 동일하게 적용한다.',);
+  lines.push('- 동일 JSON 스키마를 그대로 사용하되, meta.caseType 값은 반드시 다음 형식으로 적는다: 『' + type.name + '』 후속 기록');
+  lines.push('- actionItems에는 이번 후속 조치로도 아직 끝나지 않고 남아 있는 절차만 담는다(이미 완료한 절차는 다시 넣지 않는다). 남은 절차가 없으면 빈 배열([])로 둔다.');
+  lines.push('');
+  lines.push('위 사실만으로 후속 누가기록을 작성한다. 입력에 없는 사실·발언·수치를 지어내지 않는다. JSON 객체 하나만 출력한다.');
+  return lines.join('\n');
+}
+
 export function buildVerifyPrompt(args: { body: string; facts: string; basis: RetrievedBasis }): { system: string; user: string } {
   const system = [
     '당신은 이미 작성된 NEIS 누가기록 본문을 법적으로 감사·보강하는 검증 도우미다.',
     '두 축으로 감사한다.',
     '1) 금지 규칙: 법률 단정(~에 해당함, ~죄 성립, 공연성 충족 등), 평가어(산만함·버릇없음 등), 모욕·비하·낙인, 민감정보(장애·병력·종교 등), 타 학생·학부모 실명이 있으면 위반이다.',
     '2) 방어력(대법원 2021도13926의 객관적으로 타당한 지도 기준): 본문에 ①구체적 관찰사실 ②적용한 지도 단계 명시 ③비례성(단계적·최소개입) ④후속 조치가 드러나야 한다. 빠진 요건은 missingElements에 적는다.',
+    '⑤ 절차 완료 표현 감사: 보호자 통보·신고·관리자 보고·분리조치 같은 이행 의무 절차가 본문에 "~할 예정임"처럼 미완 상태로 적혀 있으면 missingElements에 지적한다(해당 문장을 임의 삭제는 금지 — 지적만 한다).',
     '보강은 제공된 사실 범위 안에서만 한다. 없는 사실·발언·수치를 창작하지 않는다. 본문에는 판례 사건번호나 법률 단정을 넣지 않는다(헤지 서술 유지).',
     '아래 JSON 하나만 출력한다. 코드펜스 금지.',
     '{"pass":true/false,"violations":["위반 항목"],"missingElements":["누락 요건"],"revisedBody":"보강한 본문(문제 없으면 원문 그대로)"}',
