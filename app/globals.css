@@ -11,12 +11,12 @@
   --ink-soft:   #33465b;   /* 보조 텍스트·라벨 (~8.4:1) */
   --ink-muted:  #566476;   /* 캡션·메타 (~4.7:1, 텍스트 최저선) */
 
-  /* --- Accent: 깊은 인디고 (브랜드 유지, 대비 강화) --- */
-  --accent:        #4338ca;   /* 기본 액센트 (~7:1) */
-  --accent-hover:  #362eb0;
-  --accent-weak:   #eef0fb;   /* 선택·활성 배경 */
-  --accent-border: #cdd0f3;
-  --accent-ring:   rgba(67, 56, 202, 0.18);
+  /* --- Accent: 소프트 스카이블루 (맑은 상담실 컨셉) --- */
+  --accent:        #2563eb;   /* 기본 액센트 (white 위 ~5.2:1) */
+  --accent-hover:  #1d4ed8;
+  --accent-weak:   #eaf1ff;   /* 선택·활성 배경 */
+  --accent-border: #c3d7fe;
+  --accent-ring:   rgba(37, 99, 235, 0.18);
 
   /* --- 의미색 --- */
   --danger:        #c62828;
@@ -34,16 +34,16 @@
   --warning-border:#eddca4;
 
   /* --- 표면·라인 --- */
-  --bg:            #f5f8fc;   /* 페이지 배경 (틴트 → 카드가 표면으로 떠 보임) */
+  --bg:            #f0f6ff;   /* 페이지 배경 (틴트 → 카드가 표면으로 떠 보임) */
   --surface:       #ffffff;
-  --surface-sunken:#f2f5fa;
-  --line:          #e3e8ef;   /* 헤어라인 */
-  --line-strong:   #c9d3df;   /* 입력 테두리 (보이는 선) */
+  --surface-sunken:#f3f7fd;
+  --line:          #dfe8f5;   /* 헤어라인 */
+  --line-strong:   #c5d4e8;   /* 입력 테두리 (보이는 선) */
 
-  /* --- 헤더: 딥 네이비 밴드 --- */
-  --header-bg:     #0d1b2a;
-  --header-fg:     #e8eef6;
-  --header-muted:  #9fb0c4;
+  /* --- 헤더: 라이트 글래스 밴드 --- */
+  --header-bg:     rgba(255, 255, 255, 0.82);
+  --header-fg:     #0d1b2a;
+  --header-muted:  #566476;
 
   /* --- 타이포 --- */
   --font-sans: 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo',
@@ -62,13 +62,19 @@
   /* --- 형태 --- */
   --radius-sm: 6px;
   --radius:    8px;
-  --radius-lg: 12px;
+  --radius-lg: 16px;
+  --bubble-radius: 18px;
   --page-max:  1040px;
   --section-gap: 56px;
   --card-padding: 28px;
 
   --shadow-sm: 0 1px 2px rgba(13, 27, 42, 0.04), 0 1px 3px rgba(13, 27, 42, 0.06);
   --shadow-md: 0 6px 20px rgba(13, 27, 42, 0.10);
+  --shadow-soft: 0 8px 30px rgba(37, 99, 235, 0.08);
+
+  /* --- 글래스 --- */
+  --glass-bg:     rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.55);
 }
 
 * { box-sizing: border-box; }
@@ -76,7 +82,9 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: linear-gradient(180deg, #e7f0ff, #f0f6ff 320px);
+  background-repeat: no-repeat;
   color: var(--ink);
   font-family: var(--font-sans);
   font-weight: 400;
@@ -122,7 +130,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1;
-  border-radius: var(--radius-sm); padding: 13px 22px; cursor: pointer;
+  border-radius: 12px; padding: 13px 22px; cursor: pointer;
   border: 1px solid transparent; text-decoration: none;
   transition: background-color 0.15s ease, border-color 0.15s ease,
               box-shadow 0.15s ease, transform 0.05s ease;
@@ -157,9 +165,9 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: var(--card-padding);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-soft);
 }
 .card-link {
   display: block; text-decoration: none; color: inherit;
@@ -244,5 +252,9 @@ details.disclosure[open] > summary .chev { transform: rotate(180deg); }
 
 /* --- 접근성: 모션 감소 --- */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  * {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
 }
