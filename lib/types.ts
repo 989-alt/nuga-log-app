@@ -90,5 +90,4 @@ export interface GenerateResult {
   legalProtection: LegalProtection[];
   usedModel?: string;
   fallbackNote?: string;
-  refined?: boolean;
 }
