@@ -1,6 +1,7 @@
 import { getCaseType } from '@/lib/caseTypes';
-import type { CaseTypeId, SpecialEdInfo } from '@/lib/types';
+import type { CaseTypeId, FollowUpContext, SpecialEdInfo } from '@/lib/types';
 import type { RetrievedBasis } from '@/lib/lawRetrieval';
+import { FOLLOWUP_SLOTS } from '@/lib/followUp';
 
 // 변환 수준을 보여 주는 예시 출력. 실제 스키마와 동일하게 JSON.stringify 해서
 // 프롬프트에 넣는다(수작업 escape 회피 + 유효 JSON 보장).
@@ -128,6 +129,63 @@ export function buildUserPrompt(args: {
   }
   lines.push('');
   lines.push('위 사실만으로 누가기록을 작성한다. 입력에 없는 사실·발언·수치를 지어내지 않는다. JSON 객체 하나만 출력한다.');
+  return lines.join('\n');
+}
+
+// "2026-07-08" 같은 ISO 날짜를 "7월 8일"로 풀어 쓴다. 파싱 실패 시 원문 그대로 반환.
+function monthDayLabel(dateStr: string): string {
+  const m = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return dateStr;
+  return `${Number(m[2])}월 ${Number(m[3])}일`;
+}
+
+/**
+ * 기존 누가기록(원 사건)을 원자료로 제시하고 그 후속 조치 사실(FOLLOWUP_SLOTS)로
+ * 후속 누가기록을 작성시키는 사용자 프롬프트. 시스템 프롬프트는 buildSystemPrompt()를
+ * 그대로 재사용한다(별도 후속용 시스템 프롬프트 없음).
+ */
+export function buildFollowUpUserPrompt(args: {
+  followUp: FollowUpContext;
+  slots: Record<string, string>;
+  specialEd: SpecialEdInfo;
+  basis: RetrievedBasis;
+}): string {
+  const type = getCaseType(args.followUp.caseTypeId);
+  const dateLabel = monthDayLabel(args.followUp.parentDate);
+  const lines: string[] = [];
+  lines.push(`사안 유형: ${type.name} (후속 기록)`);
+  lines.push(`원 기록 일자: ${args.followUp.parentDate}`);
+  lines.push('아래는 원 사건 기록 전문이다. 이 사실관계를 전제로 삼되, 후속 누가기록 본문에서 이 내용을 재서술하지 않는다.');
+  lines.push('[원 기록 본문 전문]');
+  lines.push(args.followUp.parentBody);
+  lines.push('');
+  lines.push('정적 근거 조문(참고):');
+  for (const b of type.bases) lines.push(`- ${b}`);
+  lines.push('');
+  lines.push(args.basis.grounding);
+  lines.push('');
+  if (args.basis.precedents.length > 0) {
+    lines.push('검색된 판례(caseRefs에 이 사건번호만 사용, 없는 판례 창작 금지):');
+    for (const p of args.basis.precedents) lines.push(`- ${p.caseNo}: ${p.gist}`);
+    lines.push('');
+  }
+  if (args.specialEd.isSpecialEd) {
+    lines.push('이 사안의 대상 학생은 특수교육대상자이며 문제행동이 반복·심각하다. [근거]에 "교원의 학생생활지도에 관한 고시 제15조③(특수교육대상자의 심각한 문제행동은 개별화교육계획에 행동중재지원 사항 포함)"을 함께 인용하고, [향후 안전한 지도 방법]에 특수교육 지원팀·행동중재전문가 연계와 개별화교육계획(IEP) 갱신 요청을 포함한다.');
+    lines.push('');
+  }
+  lines.push('아래는 그 후속 조치의 원자료다. 이 어휘를 그대로 옮기지 말고, 시스템 규칙과 예시의 변환 수준으로 사실을 분해해 새로 작성하라.');
+  for (const slot of FOLLOWUP_SLOTS) {
+    const v = args.slots[slot.key];
+    if (v && v.trim() !== '') lines.push(`- ${slot.label}: ${v.trim()}`);
+  }
+  lines.push('');
+  lines.push('후속 누가기록 작성 규칙:');
+  lines.push(`- 본문은 "${dateLabel} 기록된 ${type.name} 사안의 후속 조치로서 …함" 취지의 표현으로 원 사안을 정확히 1구절만 참조한다. 원 기록 본문의 사실을 다시 서술(재서술)하지 않는다.`);
+  lines.push('- 그 뒤로는 이번에 수집된 후속 조치 사실(수행한 절차·일시·상대·결과·다음 계획)만으로 평어체 객관 서술 한 문단을 작성한다. 시스템 프롬프트의 본문 작성 규칙(평어 종결, 마크다운 금지, 직접인용 규칙 등)을 동일하게 적용한다.',);
+  lines.push('- 동일 JSON 스키마를 그대로 사용하되, meta.caseType 값은 반드시 다음 형식으로 적는다: 『' + type.name + '』 후속 기록');
+  lines.push('- actionItems에는 이번 후속 조치로도 아직 끝나지 않고 남아 있는 절차만 담는다(이미 완료한 절차는 다시 넣지 않는다). 남은 절차가 없으면 빈 배열([])로 둔다.');
+  lines.push('');
+  lines.push('위 사실만으로 후속 누가기록을 작성한다. 입력에 없는 사실·발언·수치를 지어내지 않는다. JSON 객체 하나만 출력한다.');
   return lines.join('\n');
 }
 
