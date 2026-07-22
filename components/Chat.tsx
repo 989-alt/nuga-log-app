@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
-import type { AiConfig, ChatTurnResponse, FollowUpContext, GenerateResult, SpecialEdInfo, ThinkingLevel } from '@/lib/types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { AiConfig, AiProvider, ChatTurnResponse, FollowUpContext, GenerateResult, ThinkingLevel } from '@/lib/types';
 import { initialChatState, withUserMessage, withTurnResponse, type ChatState } from '@/lib/chatState';
 import { getCaseType } from '@/lib/caseTypes';
+import { scanIdentifiers, maskIdentifiers, scanSensitive, summarizeCategories } from '@/lib/piiScan';
 import ApiKeyPanel from '@/components/ApiKeyPanel';
-import SpecialEdPanel from '@/components/SpecialEdPanel';
 import ChatThread from '@/components/ChatThread';
 import ResultBlocks from '@/components/ResultBlocks';
 import QuickReplies from '@/components/QuickReplies';
@@ -14,6 +14,18 @@ import { addHistory, makeId, type HistoryItem } from '@/lib/history';
 function formatMonthDay(isoDate: string): string {
   const [, m, d] = isoDate.split('-');
   return `${Number(m)}월 ${Number(d)}일`;
+}
+
+const PROVIDER_LABEL: Record<AiProvider, string> = {
+  gemini: 'Google Gemini',
+  claude: 'Anthropic Claude',
+  openai: 'OpenAI',
+};
+
+/** 전송 고지에 쓸 외부 AI 제공자 이름 */
+function providerLabel(ai: AiConfig): string {
+  const p = ai.provider as AiProvider | undefined;
+  return p ? PROVIDER_LABEL[p] ?? '외부 AI' : '외부 AI';
 }
 
 function followUpContextOf(item: HistoryItem): FollowUpContext {
@@ -48,9 +60,11 @@ export default function Chat({
   onSaved?: () => void;
 } = {}) {
   const [ai, setAi] = useState<AiConfig>({ mode: 'byok' });
-  const [specialEd, setSpecialEd] = useState<SpecialEdInfo>({ isSpecialEd: false, disabilities: [] });
   const [chatState, setChatState] = useState<ChatState>(initialChatState);
   const [input, setInput] = useState('');
+  // 이름(저신뢰) 오탐일 때만 교사가 "그대로 전송"으로 해제할 수 있는 예외 플래그.
+  // 입력이 바뀌면 다시 잠긴다.
+  const [overrideLowRisk, setOverrideLowRisk] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +109,20 @@ export default function Chat({
   const defaultThinking: ThinkingLevel =
     chatState.caseTypeId && getCaseType(chatState.caseTypeId).highRisk ? 'dynamic' : 'off';
 
+  // 입력이 바뀔 때마다 식별정보·민감정보를 재검사한다(전송 전 클라이언트 검사).
+  const idHits = useMemo(() => scanIdentifiers(input), [input]);
+  const sensitiveHits = useMemo(() => scanSensitive(input), [input]);
+  const highHits = idHits.filter((h) => h.confidence === 'high');
+  const lowHits = idHits.filter((h) => h.confidence === 'low');
+  // 남은 게 저신뢰(이름 추정)뿐일 때만 예외 전송 허용
+  const onlyLowRisk = idHits.length > 0 && highHits.length === 0;
+  const blockedByPii = idHits.length > 0 && !(onlyLowRisk && overrideLowRisk);
+
+  // 입력이 바뀌면 예외 플래그를 재설정해 매 편집마다 다시 검사되게 한다.
+  useEffect(() => {
+    setOverrideLowRisk(false);
+  }, [input]);
+
   async function sendTurn(nextState: ChatState) {
     setChatBusy(true);
     setError(null);
@@ -107,7 +135,6 @@ export default function Chat({
           messages: nextState.messages,
           slots: nextState.slots,
           caseTypeId: nextState.caseTypeId,
-          specialEd,
           ai,
           ...(followUpTarget ? { followUp: followUpContextOf(followUpTarget) } : {}),
         }),
@@ -140,9 +167,15 @@ export default function Chat({
 
   function handleSend() {
     const text = input.trim();
-    if (!text || chatBusy || genBusy) return;
+    if (!text || chatBusy || genBusy || blockedByPii) return;
     setInput('');
     sendPreset(text);
+  }
+
+  /** 감지된 식별정보를 한 번에 마스킹해 입력창에 되돌려 넣는다(교사가 확인 후 전송). */
+  function maskInput() {
+    setInput((prev) => maskIdentifiers(prev, scanIdentifiers(prev)));
+    setOverrideLowRisk(false);
   }
 
   function retryChat() {
@@ -161,7 +194,6 @@ export default function Chat({
         body: JSON.stringify({
           caseTypeId: chatState.caseTypeId,
           slots: chatState.slots,
-          specialEd,
           ai,
           ...(followUpTarget ? { followUp: followUpContextOf(followUpTarget) } : {}),
         }),
@@ -204,7 +236,6 @@ export default function Chat({
   return (
     <div style={{ display: 'grid', gap: 20 }}>
       <ApiKeyPanel onChange={setAi} defaultThinking={defaultThinking} />
-      <SpecialEdPanel value={specialEd} onChange={setSpecialEd} />
 
       {followUpTarget && (
         <div className="callout callout-info" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -243,23 +274,66 @@ export default function Chat({
           </div>
         )}
 
-        <div style={{ borderTop: '1px solid var(--line)', padding: 16, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="있었던 일을 자유롭게 적어 주세요"
-            disabled={chatBusy || genBusy}
-            style={{ flex: 1, minHeight: 52, wordBreak: 'keep-all' }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <button type="button" className="btn btn-primary" disabled={chatBusy || genBusy || !input.trim()} onClick={handleSend}>
-            {chatBusy ? <span className="spinner" aria-hidden /> : '전송'}
-          </button>
+        <div style={{ borderTop: '1px solid var(--line)', padding: 16, display: 'grid', gap: 12 }}>
+          {idHits.length > 0 && (
+            <div className={blockedByPii ? 'callout callout-danger' : 'callout callout-warning'} style={{ margin: 0 }}>
+              <div style={{ fontWeight: 600 }}>
+                {blockedByPii ? '⚠ 식별정보가 있어 전송을 멈췄어요' : '식별정보를 가린 상태로 전송합니다'}
+              </div>
+              <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.55, color: 'inherit' }}>
+                이름·학교·학년·반·번호 등은 이름을 빼도 특정 개인을 알아볼 수 있어(개인정보 보호법 제2조) 외부 AI로
+                보내지 않는 것이 안전합니다. 감지된 항목: <strong style={{ fontWeight: 600 }}>{summarizeCategories(idHits).join(', ')}</strong>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, alignItems: 'center' }}>
+                <button type="button" className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 13 }} onClick={maskInput} disabled={chatBusy || genBusy}>
+                  자동으로 가리기
+                </button>
+                {onlyLowRisk && !overrideLowRisk && (
+                  <button
+                    type="button"
+                    onClick={() => setOverrideLowRisk(true)}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', fontSize: 12.5, color: 'inherit', opacity: 0.75, textDecoration: 'underline' }}
+                  >
+                    감지된 표현은 이름이 아니에요 · 그대로 전송
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {sensitiveHits.length > 0 && (
+            <div className="callout callout-warning" style={{ margin: 0 }}>
+              <div style={{ fontWeight: 600 }}>민감정보가 포함된 것 같아요</div>
+              <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.55, color: 'inherit' }}>
+                {sensitiveHits.map((h) => h.category).join(', ')} 관련 내용은 이름을 지워도 신중히 다뤄야 하는
+                민감정보입니다(개인정보 보호법 제23조). 외부 AI에는 지도에 꼭 필요한 최소한만 적어 주세요.
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="있었던 일을 자유롭게 적어 주세요"
+              disabled={chatBusy || genBusy}
+              style={{ flex: 1, minHeight: 52, wordBreak: 'keep-all' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+            <button type="button" className="btn btn-primary" disabled={chatBusy || genBusy || !input.trim() || blockedByPii} onClick={handleSend}>
+              {chatBusy ? <span className="spinner" aria-hidden /> : '전송'}
+            </button>
+          </div>
+
+          <p className="help" style={{ margin: 0 }}>
+            입력 내용은 <strong style={{ fontWeight: 600 }}>{providerLabel(ai)}</strong>(외부 AI)로 전송·처리됩니다.
+            이름·학번·반·학교 등 식별정보는 넣지 마세요. 이 앱은 서버에 저장·기록하지 않으며 결과는 이 브라우저에만 남습니다.
+          </p>
         </div>
       </div>
 
@@ -282,7 +356,7 @@ export default function Chat({
       )}
 
       {result && chatState.caseTypeId && (
-        <ResultBlocks result={result} context={{ caseTypeId: chatState.caseTypeId, slots: chatState.slots, specialEd }} />
+        <ResultBlocks result={result} context={{ caseTypeId: chatState.caseTypeId, slots: chatState.slots }} />
       )}
     </div>
   );
