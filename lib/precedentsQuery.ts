@@ -1,11 +1,10 @@
-import type { CaseTypeId, SpecialEdInfo } from '@/lib/types';
+import type { CaseTypeId } from '@/lib/types';
 import { getCaseType } from '@/lib/caseTypes';
 import { retrieveBasis } from '@/lib/lawRetrieval';
 
 export interface PrecedentsQueryBody {
   caseTypeId: CaseTypeId;
   slots: Record<string, string>;
-  specialEd: SpecialEdInfo;
   extraKeywords?: string[];
 }
 
@@ -15,7 +14,6 @@ export async function runPrecedents(body: PrecedentsQueryBody, opts?: { fetchImp
   const basis = await retrieveBasis({
     caseTypeId: body.caseTypeId,
     keywords,
-    specialEd: body.specialEd.isSpecialEd,
     fetchImpl: opts?.fetchImpl,
   });
   return { precedents: basis.precedents };

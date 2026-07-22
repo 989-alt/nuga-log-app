@@ -17,7 +17,7 @@ export async function runChatTurn(
     return runFollowUpChatTurn(req, req.followUp, opts);
   }
 
-  const system = buildInterviewSystemPrompt(req.specialEd);
+  const system = buildInterviewSystemPrompt();
   // 대화 전체를 user 프롬프트로 직렬화(무상태). slots 현황도 모델에 제공.
   const convo = req.messages.map((m) => `${m.role === 'user' ? '교사' : '도우미'}: ${m.content}`).join('\n');
   const slotState = Object.entries(req.slots).map(([k, v]) => `- ${k}: ${v}`).join('\n') || '(아직 없음)';
@@ -49,7 +49,7 @@ async function runFollowUpChatTurn(
   followUp: FollowUpContext,
   opts?: { fetchImpl?: typeof fetch }
 ): Promise<ChatTurnResponse> {
-  const system = buildFollowUpInterviewPrompt(req.specialEd, followUp);
+  const system = buildFollowUpInterviewPrompt(followUp);
   const convo = req.messages.map((m) => `${m.role === 'user' ? '교사' : '도우미'}: ${m.content}`).join('\n');
   const slotState = Object.entries(req.slots).map(([k, v]) => `- ${k}: ${v}`).join('\n') || '(아직 없음)';
   const user = [

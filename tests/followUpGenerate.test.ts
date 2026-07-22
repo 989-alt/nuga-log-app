@@ -23,7 +23,6 @@ describe('buildFollowUpUserPrompt', () => {
   const p = buildFollowUpUserPrompt({
     followUp,
     slots: followUpSlots,
-    specialEd: { isSpecialEd: false, disabilities: [] },
     basis: { grounding: '[근거자료] 초·중등교육법 제20조의2', precedents: [{ caseNo: '2021도13926', gist: '지도행위 정당성 판단기준' }] },
   });
 
@@ -96,7 +95,6 @@ function followUpPipeline(draftText: string, verifyText: string): typeof fetch {
 const followUpReq: GenerateRequest = {
   caseTypeId: 1,
   slots: followUpSlots,
-  specialEd: { isSpecialEd: false, disabilities: [] },
   ai: { mode: 'byok', provider: 'claude', apiKey: 'k', model: 'claude-haiku-4-5-20251001' },
   followUp,
 };
@@ -141,7 +139,7 @@ describe('POST /api/generate — follow-up validation branch', () => {
   it('validates against follow-up slots (not the parent case-type slots) when body.followUp is present', async () => {
     // caseTypeId 1's own required slots (datetime/place/behavior/...) are all blank here,
     // but that must NOT trigger the regular validateSlots error — only follow-up slots matter.
-    const req = { caseTypeId: 1, slots: {}, specialEd: { isSpecialEd: false, disabilities: [] }, ai: { mode: 'free' }, followUp };
+    const req = { caseTypeId: 1, slots: {}, ai: { mode: 'free' }, followUp };
     const res = await POST(makeReq(req));
     expect(res.status).toBe(400);
     const json = await res.json();

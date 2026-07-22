@@ -1,7 +1,6 @@
-import type { CaseTypeId, FollowUpContext, SpecialEdInfo } from '@/lib/types';
+import type { CaseTypeId, FollowUpContext } from '@/lib/types';
 import { CASE_TYPES, getCaseType } from '@/lib/caseTypes';
 import { validateSlots } from '@/lib/validation';
-import { disabilityLabels } from '@/lib/specialEd';
 import { groundingText } from '@/lib/legalKb';
 import { followUpSlotSpecLine, validateFollowUpSlots } from '@/lib/followUp';
 
@@ -27,7 +26,7 @@ function slotSpecLines(): string[] {
   });
 }
 
-export function buildInterviewSystemPrompt(specialEd: SpecialEdInfo): string {
+export function buildInterviewSystemPrompt(): string {
   const typeList = CASE_TYPES.map((c) => `${c.id}. ${c.name}`).join(' / ');
   const lines = [
     '당신은 대한민국 초·중등 교사와 대화하며 NEIS 누가기록에 필요한 사실을 인터뷰로 수집하는 도우미다.',
@@ -41,11 +40,8 @@ export function buildInterviewSystemPrompt(specialEd: SpecialEdInfo): string {
     '- 행동이 반복된 사안이면 정확한 횟수(불확실하면 최소 횟수)와 각 반복 시 교사의 대응, 상황이 어떻게 종결되었는지를 반드시 묻는다.',
     '- 보호자 통보·관리자 보고·신고 같은 절차는 완료했는지 아직인지 구분해 묻고, 완료면 일시·수단·상대 반응까지, 미완이면 슬롯 값에 "미완(예정: ...)" 형태로 수집한다.',
     '- 다른 학생이 목격하거나 연루된 사안이면 다른 학생 보호를 위해 취한 조치를 묻는다.',
-    specialEd.isSpecialEd
-      ? `- 대상 학생은 특수교육대상자다(${disabilityLabels(specialEd.disabilities).join(', ') || '유형 미상'}). 장애 특성을 고려하되, 장애 유형을 본문에 넣지 말고 행동 중심으로 수집한다.`
-      : '',
     '[참고 법령·판례]',
-    groundingText(specialEd.isSpecialEd),
+    groundingText(),
     '- 교사가 지도 방법을 모르겠다고 하거나 어떻게 해야 할지 물으면, 위 법령·판례와 교육학적 원칙(비례성, 단계적 개입, 긍정행동지원)에 근거한 지도 방법을 2~3가지 제안하고 각 방법의 근거(조문·판례 번호)를 assistantMessage 안에 함께 밝힌다.',
     '- 필수(*) 슬롯이 모두 모여 readyToGenerate를 true로 낼 때는, assistantMessage를 수집 내용 한 줄 요약 뒤 정확히 "이 내용을 바탕으로 NEIS 누가기록 초안을 생성할까요?" 로 끝맺는다.',
     '- 교사가 초안 생성 확인에 아니오라고 답하거나 추가·수정할 내용이 있다고 하면, 어떤 내용을 추가·수정할지 구체적으로 되묻는다(readyToGenerate는 다시 false).',
@@ -110,7 +106,7 @@ export function applyGate(
  * FOLLOWUP_SLOTS(followUpAction/datetime/counterpart/outcome/nextStep)만 수집하며,
  * caseTypeId는 원 사건 값으로 고정한다.
  */
-export function buildFollowUpInterviewPrompt(specialEd: SpecialEdInfo, followUp: FollowUpContext): string {
+export function buildFollowUpInterviewPrompt(followUp: FollowUpContext): string {
   const caseType = getCaseType(followUp.caseTypeId);
   const lines = [
     '당신은 대한민국 초·중등 교사와 대화하며 기존 누가기록의 후속 조치를 인터뷰로 수집하는 도우미다.',
@@ -123,11 +119,8 @@ export function buildFollowUpInterviewPrompt(specialEd: SpecialEdInfo, followUp:
     '- 원 사건 이후 교사가 실제로 밟은 절차(예: 보호자 통보 완료, 상담 실시, 협의회 개최, 재관찰 결과, 전문기관 연계, 신고)를 구체적으로 묻는다.',
     '- 완료된 절차의 사실만 다룬다. 언제·누구와·어떤 수단으로·어떤 결과였는지를 확인한다. 추측으로 빈칸을 채우지 않는다.',
     '- 평가어로 답하면 구체적인 사실을 되묻는다.',
-    specialEd.isSpecialEd
-      ? `- 대상 학생은 특수교육대상자다(${disabilityLabels(specialEd.disabilities).join(', ') || '유형 미상'}). 장애 특성을 고려하되, 장애 유형을 본문에 넣지 말고 행동 중심으로 수집한다.`
-      : '',
     '[참고 법령·판례]',
-    groundingText(specialEd.isSpecialEd),
+    groundingText(),
     guidanceSuggestionLine(),
     '- 필수(*) 슬롯이 모두 모여 readyToGenerate를 true로 낼 때는, assistantMessage를 수집 내용 한 줄 요약 뒤 정확히 "이 내용을 바탕으로 후속 누가기록 초안을 생성할까요?" 로 끝맺는다.',
     reviseOnNoLine(),

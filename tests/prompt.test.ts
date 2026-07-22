@@ -20,7 +20,6 @@ describe('buildUserPrompt', () => {
     const p = buildUserPrompt({
       caseTypeId: 1,
       slots: { datetime: '2026.5.13.(수) 3교시', behavior: '필통을 떨어뜨림' },
-      specialEd: { isSpecialEd: false, disabilities: [] },
       basis: emptyBasis,
     });
     expect(p).toContain('일반 생활지도');
@@ -29,7 +28,7 @@ describe('buildUserPrompt', () => {
     expect(p).toContain('초·중등교육법 제20조의2');
   });
 
-  it('adds the special-ed clause, grounding, and precedent block when provided', () => {
+  it('adds the grounding and precedent block when provided', () => {
     const basis: RetrievedBasis = {
       grounding: 'GROUNDING_MARKER 현행 법령 근거 요약',
       precedents: [{ caseNo: '2021도13926', gist: '교사의 객관적으로 타당한 지도' }],
@@ -37,10 +36,8 @@ describe('buildUserPrompt', () => {
     const p = buildUserPrompt({
       caseTypeId: 3,
       slots: { datetime: 'x' },
-      specialEd: { isSpecialEd: true, disabilities: [] },
       basis,
     });
-    expect(p).toContain('제15조');
     expect(p).toContain('GROUNDING_MARKER');
     expect(p).toContain('검색된 판례');
     expect(p).toContain('2021도13926');

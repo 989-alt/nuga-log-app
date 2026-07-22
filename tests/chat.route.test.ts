@@ -12,7 +12,6 @@ const base: ChatTurnRequest = {
   messages: [{ role: 'user', content: '학생이 수업 중 계속 떠들어요' }],
   slots: {},
   caseTypeId: null,
-  specialEd: { isSpecialEd: false, disabilities: [] },
   ai: { mode: 'byok', provider: 'claude', apiKey: 'k', model: 'claude-haiku-4-5-20251001' },
 };
 

@@ -37,7 +37,6 @@ const clothingCase: GenerateRequest = {
     studentReaction: '잠시 내렸다가 다시 반복함',
     followUp: '지속 관찰',
   },
-  specialEd: { isSpecialEd: true, disabilities: ['autism'] },
   ai: { mode: 'byok', provider: 'claude', apiKey: 'k', model: 'claude-haiku-4-5-20251001' },
 };
 
@@ -66,7 +65,6 @@ const disruptionCase: GenerateRequest = {
     studentReaction: '잠시 멈췄다가 다시 큰 소리로 발언함',
     followUp: '자리 배치 재검토',
   },
-  specialEd: { isSpecialEd: false, disabilities: [] },
   ai: { mode: 'byok', provider: 'claude', apiKey: 'k', model: 'claude-haiku-4-5-20251001' },
 };
 

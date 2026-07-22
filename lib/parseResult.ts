@@ -84,12 +84,11 @@ export async function runGenerate(
   const basis = await retrieveBasis({
     caseTypeId: req.caseTypeId,
     keywords,
-    specialEd: req.specialEd.isSpecialEd,
     fetchImpl: opts?.fetchImpl,
   });
 
   const system = buildSystemPrompt();
-  const user = buildUserPrompt({ caseTypeId: req.caseTypeId, slots: req.slots, specialEd: req.specialEd, basis });
+  const user = buildUserPrompt({ caseTypeId: req.caseTypeId, slots: req.slots, basis });
   const models = buildLadder(req.ai);
   const preferred = models[0];
 
@@ -121,12 +120,11 @@ async function runFollowUpGenerate(
   const basis = await retrieveBasis({
     caseTypeId: followUp.caseTypeId,
     keywords,
-    specialEd: req.specialEd.isSpecialEd,
     fetchImpl: opts?.fetchImpl,
   });
 
   const system = buildSystemPrompt();
-  const user = buildFollowUpUserPrompt({ followUp, slots: req.slots, specialEd: req.specialEd, basis });
+  const user = buildFollowUpUserPrompt({ followUp, slots: req.slots, basis });
   const models = buildLadder(req.ai);
   const preferred = models[0];
 

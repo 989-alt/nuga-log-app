@@ -36,14 +36,13 @@ describe('legalKb', () => {
     expect(item.gist).toContain('소속 교육청 지침 및 교원지위법 원문에 따라 확인한다');
   });
 
-  it('groundingText mentions 고시 5단계 and includes 특수교육 제15조 only when specialEd', () => {
-    expect(groundingText(false)).toContain('조언');
-    expect(groundingText(false)).not.toContain('제15조');
-    expect(groundingText(true)).toContain('제15조');
+  it('groundingText mentions 고시 5단계 and omits 특수교육 제15조 (general-students only)', () => {
+    expect(groundingText()).toContain('조언');
+    expect(groundingText()).not.toContain('제15조');
   });
 
   it('groundingText includes the new haeseolseo-derived key phrases', () => {
-    const text = groundingText(false);
+    const text = groundingText();
     expect(text).toContain('개별학생교육지원');
     expect(text).toContain('교권보호위원회');
   });

@@ -3,7 +3,7 @@ import { parseInterviewTurn, applyGate, buildInterviewSystemPrompt } from '@/lib
 
 describe('interview', () => {
   it('system prompt states the 1~3 question rule and gate', () => {
-    const p = buildInterviewSystemPrompt({ isSpecialEd: false, disabilities: [] });
+    const p = buildInterviewSystemPrompt();
     expect(p).toContain('한 번에');
     expect(p).toContain('필수');
   });
@@ -28,7 +28,7 @@ describe('interview', () => {
   });
 
   it('system prompt enumerates per-type slot keys so the model can fill them', () => {
-    const p = buildInterviewSystemPrompt({ isSpecialEd: false, disabilities: [] });
+    const p = buildInterviewSystemPrompt();
     expect(p).toContain('teacherUtterance*');   // 유형1 필수 슬롯 키
     expect(p).toContain('restraintForm*');      // 유형6 필수 슬롯 키
     expect(p).toContain('guardianNotice(');     // 유형1에서 optional 표기

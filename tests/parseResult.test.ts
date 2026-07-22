@@ -38,7 +38,6 @@ describe('runGenerate', () => {
       teacherUtterance: '무슨 일이니', studentUtterance: '장난이었어요',
       guidanceStep: '주의', studentReaction: '사과함', followUp: '1주 재관찰',
     },
-    specialEd: { isSpecialEd: false, disabilities: [] },
     ai: { mode: 'free' },
   };
 
@@ -97,7 +96,6 @@ function resultJson(body: string) {
 const baseReq2: GenerateRequest = {
   caseTypeId: 1,
   slots: { datetime: '2026.7.6.', place: '교실', behavior: '떠듦', teacherUtterance: '조용히', studentUtterance: '네', guidanceStep: '주의', studentReaction: '조용', followUp: '관찰' },
-  specialEd: { isSpecialEd: false, disabilities: [] },
   ai: { mode: 'free' },
 };
 

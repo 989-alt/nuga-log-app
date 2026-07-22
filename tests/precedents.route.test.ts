@@ -9,7 +9,7 @@ function mcpMock(text: string): typeof fetch {
 describe('runPrecedents', () => {
   it('returns precedents extracted from an extra-keyword search', async () => {
     const res = await runPrecedents(
-      { caseTypeId: 6, slots: { behavior: '제지' }, specialEd: { isSpecialEd: false, disabilities: [] }, extraKeywords: ['정당행위'] },
+      { caseTypeId: 6, slots: { behavior: '제지' }, extraKeywords: ['정당행위'] },
       { fetchImpl: mcpMock('2020도5555 교사의 제지는 정당행위') }
     );
     expect(res.precedents.some((p) => p.caseNo === '2020도5555')).toBe(true);
@@ -18,7 +18,7 @@ describe('runPrecedents', () => {
   it('never throws on MCP failure', async () => {
     const failing: typeof fetch = (async () => new Response('x', { status: 500 })) as any;
     const res = await runPrecedents(
-      { caseTypeId: 1, slots: {}, specialEd: { isSpecialEd: false, disabilities: [] } },
+      { caseTypeId: 1, slots: {} },
       { fetchImpl: failing }
     );
     expect(res.precedents).toEqual([]);

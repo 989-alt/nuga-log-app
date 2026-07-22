@@ -55,13 +55,12 @@ async function mcpCall(
 export async function retrieveBasis(args: {
   caseTypeId: CaseTypeId;
   keywords: string[];
-  specialEd: boolean;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
 }): Promise<RetrievedBasis> {
   const fetchImpl = args.fetchImpl ?? fetch;
   const timeoutMs = args.timeoutMs ?? 3500;
-  const grounding = groundingText(args.specialEd);
+  const grounding = groundingText();
 
   const query = args.keywords.filter((k) => k.trim() !== '').join(' ').trim();
   if (query === '') return { grounding, precedents: [] };

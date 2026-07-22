@@ -18,7 +18,7 @@ describe('extractCaseNumbers', () => {
 describe('retrieveBasis', () => {
   it('always returns local grounding even when MCP fails', async () => {
     const failing: typeof fetch = (async () => new Response('x', { status: 500 })) as any;
-    const r = await retrieveBasis({ caseTypeId: 6, keywords: ['제지'], specialEd: false, fetchImpl: failing, timeoutMs: 50 });
+    const r = await retrieveBasis({ caseTypeId: 6, keywords: ['제지'], fetchImpl: failing, timeoutMs: 50 });
     expect(r.grounding).toContain('핵심 근거');
     expect(r.precedents).toEqual([]);
   });
@@ -27,7 +27,6 @@ describe('retrieveBasis', () => {
     const r = await retrieveBasis({
       caseTypeId: 6,
       keywords: ['교사 제지 정당행위'],
-      specialEd: false,
       fetchImpl: mockFetch('사건 2021도13926 교사의 제지는 정당행위'),
       timeoutMs: 50,
     });

@@ -17,7 +17,7 @@ function mockLlm(json: object): typeof fetch {
 
 describe('buildFollowUpInterviewPrompt', () => {
   it('presents the original case body and follow-up slot keys and ends with the confirmation question', () => {
-    const p = buildFollowUpInterviewPrompt({ isSpecialEd: false, disabilities: [] }, followUp);
+    const p = buildFollowUpInterviewPrompt(followUp);
     expect(p).toContain(followUp.parentBody);
     expect(p).toContain('followUpAction*');
     expect(p).toContain('datetime*');
@@ -60,7 +60,6 @@ describe('runChatTurn with followUp', () => {
     messages: [{ role: 'user', content: '보호자에게 어제 오후 3시에 전화로 알렸어요.' }],
     slots: {},
     caseTypeId: null,
-    specialEd: { isSpecialEd: false, disabilities: [] },
     ai: { mode: 'byok', provider: 'claude', apiKey: 'k', model: 'claude-haiku-4-5-20251001' },
     followUp,
   };

@@ -29,7 +29,6 @@ const verified = JSON.stringify({ pass: true, violations: [], missingElements: [
 const req: GenerateRequest = {
   caseTypeId: 1,
   slots: { datetime: '2026-07-08 수 4교시', place: '교실', behavior: '소리 지름', teacherUtterance: "'조용히'", studentUtterance: '침묵', guidanceStep: '주의', studentReaction: '잠시 조용', followUp: '재관찰' },
-  specialEd: { isSpecialEd: false, disabilities: [] },
   ai: { mode: 'byok', provider: 'claude', apiKey: 'k', model: 'claude-haiku-4-5-20251001' },
 };
 

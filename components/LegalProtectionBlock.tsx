@@ -1,13 +1,12 @@
 'use client';
 import { useState } from 'react';
 import Image from 'next/image';
-import type { CaseTypeId, LegalProtection, SpecialEdInfo } from '@/lib/types';
+import type { CaseTypeId, LegalProtection } from '@/lib/types';
 import type { Precedent } from '@/lib/lawRetrieval';
 
 export interface LegalProtectionContext {
   caseTypeId: CaseTypeId;
   slots: Record<string, string>;
-  specialEd: SpecialEdInfo;
 }
 
 export default function LegalProtectionBlock({

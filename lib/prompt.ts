@@ -1,5 +1,5 @@
 import { getCaseType } from '@/lib/caseTypes';
-import type { CaseTypeId, FollowUpContext, SpecialEdInfo } from '@/lib/types';
+import type { CaseTypeId, FollowUpContext } from '@/lib/types';
 import type { RetrievedBasis } from '@/lib/lawRetrieval';
 import { FOLLOWUP_SLOTS } from '@/lib/followUp';
 
@@ -103,7 +103,6 @@ export function buildSystemPrompt(): string {
 export function buildUserPrompt(args: {
   caseTypeId: CaseTypeId;
   slots: Record<string, string>;
-  specialEd: SpecialEdInfo;
   basis: RetrievedBasis;
 }): string {
   const type = getCaseType(args.caseTypeId);
@@ -119,10 +118,6 @@ export function buildUserPrompt(args: {
   if (args.basis.precedents.length > 0) {
     lines.push('검색된 판례(caseRefs에 이 사건번호만 사용, 없는 판례 창작 금지):');
     for (const p of args.basis.precedents) lines.push(`- ${p.caseNo}: ${p.gist}`);
-    lines.push('');
-  }
-  if (args.specialEd.isSpecialEd) {
-    lines.push('이 사안의 대상 학생은 특수교육대상자이며 문제행동이 반복·심각하다. [근거]에 "교원의 학생생활지도에 관한 고시 제15조③(특수교육대상자의 심각한 문제행동은 개별화교육계획에 행동중재지원 사항 포함)"을 함께 인용하고, [향후 안전한 지도 방법]에 특수교육 지원팀·행동중재전문가 연계와 개별화교육계획(IEP) 갱신 요청을 포함한다.');
     lines.push('');
   }
   lines.push('아래는 교사가 입력한 원자료다. 이 어휘를 재사용하지 말고, 시스템 규칙과 예시의 변환 수준으로 사실을 분해해 새로 작성하라. 교사가 직접 목격하지 않은 내용은 "본인은 ~라고 진술함"으로 적는다.');
@@ -150,7 +145,6 @@ function monthDayLabel(dateStr: string): string {
 export function buildFollowUpUserPrompt(args: {
   followUp: FollowUpContext;
   slots: Record<string, string>;
-  specialEd: SpecialEdInfo;
   basis: RetrievedBasis;
 }): string {
   const type = getCaseType(args.followUp.caseTypeId);
@@ -170,10 +164,6 @@ export function buildFollowUpUserPrompt(args: {
   if (args.basis.precedents.length > 0) {
     lines.push('검색된 판례(caseRefs에 이 사건번호만 사용, 없는 판례 창작 금지):');
     for (const p of args.basis.precedents) lines.push(`- ${p.caseNo}: ${p.gist}`);
-    lines.push('');
-  }
-  if (args.specialEd.isSpecialEd) {
-    lines.push('이 사안의 대상 학생은 특수교육대상자이며 문제행동이 반복·심각하다. [근거]에 "교원의 학생생활지도에 관한 고시 제15조③(특수교육대상자의 심각한 문제행동은 개별화교육계획에 행동중재지원 사항 포함)"을 함께 인용하고, [향후 안전한 지도 방법]에 특수교육 지원팀·행동중재전문가 연계와 개별화교육계획(IEP) 갱신 요청을 포함한다.');
     lines.push('');
   }
   lines.push('아래는 그 후속 조치의 원자료다. 이 어휘를 그대로 옮기지 말고, 시스템 규칙과 예시의 변환 수준으로 사실을 분해해 새로 작성하라.');

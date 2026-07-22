@@ -12,7 +12,7 @@ function makeReq(body: unknown): Request {
 
 describe('POST /api/generate', () => {
   it('returns 400 with missing keys when required slots are blank', async () => {
-    const req: GenerateRequest = { caseTypeId: 1, slots: { datetime: '' }, specialEd: { isSpecialEd: false, disabilities: [] }, ai: { mode: 'free' } };
+    const req: GenerateRequest = { caseTypeId: 1, slots: { datetime: '' }, ai: { mode: 'free' } };
     const res = await POST(makeReq(req));
     expect(res.status).toBe(400);
     const json = await res.json();
